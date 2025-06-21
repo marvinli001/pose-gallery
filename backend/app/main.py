@@ -4,7 +4,13 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text, desc, or_, func
 from typing import Optional
 import os
+import asyncio
+import logging
 from .database import get_db, engine
+
+# 配置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -22,17 +28,44 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 启动时测试数据库连接
+# 改进的启动事件处理
 @app.on_event("startup")
 async def startup_event():
     try:
-        with engine.connect() as connection:
-            result = connection.execute(text("SELECT 1"))
-            result.fetchone()
-        print("✅ 数据库连接成功")
+        # 使用同步方式测试数据库连接，避免异步问题
+        def test_db_connection():
+            try:
+                with engine.connect() as connection:
+                    result = connection.execute(text("SELECT 1"))
+                    result.fetchone()
+                return True
+            except Exception as e:
+                logger.error(f"数据库连接失败: {e}")
+                return False
+        
+        # 在线程池中执行数据库连接测试
+        loop = asyncio.get_event_loop()
+        db_connected = await loop.run_in_executor(None, test_db_connection)
+        
+        if db_connected:
+            logger.info("✅ 数据库连接成功")
+        else:
+            logger.warning("❌ 数据库连接失败，将使用模拟数据运行")
+            
     except Exception as e:
-        print(f"❌ 数据库连接失败: {e}")
-        print("将使用模拟数据运行")
+        logger.error(f"启动事件处理失败: {e}")
+
+# 添加关闭事件处理
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info("应用正在关闭...")
+    # 这里可以添加清理逻辑
+    try:
+        # 关闭数据库连接池
+        engine.dispose()
+        logger.info("数据库连接池已关闭")
+    except Exception as e:
+        logger.error(f"关闭时出现错误: {e}")
 
 @app.get("/")
 async def root():
