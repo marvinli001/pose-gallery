@@ -38,6 +38,10 @@ from app.config import settings
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
+# 确保日志目录存在
+log_dir = Path("logs")
+log_dir.mkdir(exist_ok=True)
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
