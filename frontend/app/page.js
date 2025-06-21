@@ -376,16 +376,6 @@ function PoseModal({ pose, onClose }) {
   )
 }
 
-// Loading 组件
-function LoadingFallback() {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="loading-spinner"></div>
-      <span className="ml-2">加载中...</span>
-    </div>
-  )
-}
-
 // 主导出组件，使用 Suspense 包装
 export default function PosesPage() {
   return (
