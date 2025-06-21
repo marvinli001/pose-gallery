@@ -1,0 +1,60 @@
+# === 全局忽略 ===
+.DS_Store
+*.log
+*.pyc
+__pycache__/
+*.sqlite3
+
+# === VSCode 配置文件 ===
+.vscode/
+
+# === Python 后端（backend） ===
+venv/
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+*.pyd
+*.so
+*.egg-info/
+
+# === 环境变量文件 ===
+.env
+.env.*
+*.env
+
+# === Node.js 前端（frontend） ===
+node_modules/
+frontend/node_modules/
+frontend/.next/
+.next/
+out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# === 构建产物 ===
+dist/
+build/
+coverage/
+*.egg-info
+*.tar.gz
+*.whl
+
+# === OS 缓存文件 ===
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# === 图标和 IDE 配置 ===
+.idea/
+*.swp
+*.swo
+*.swn
+*.bak
+*.tmp
+*.orig
+
+# === 锁文件（可选）===
+# package-lock.json
+# yarn.lock
+# poetry.lock

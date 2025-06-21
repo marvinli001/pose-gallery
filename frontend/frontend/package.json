@@ -1,0 +1,10 @@
+{
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "dev:api": "cd ../backend && python app/main.py",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:api\""
+  }
+}
