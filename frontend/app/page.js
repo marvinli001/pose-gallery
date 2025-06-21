@@ -5,6 +5,99 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 
+// 姿势卡片组件 - 移到顶部
+function PoseCard({ pose, onClick }) {
+  const [imageLoaded, setImageLoaded] = useState(false)
+  const placeholderImage = "data:image/svg+xml,%3Csvg width='280' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23f7fafc'/%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='16' fill='%23a0aec0' text-anchor='middle' dy='.3em'%3E摄影姿势%3C/text%3E%3C/svg%3E"
+
+  return (
+    <div className="pose-card" onClick={onClick}>
+      <div className="pose-image-container">
+        <Image
+          src={pose.oss_url || placeholderImage}
+          alt={pose.title}
+          width={280}
+          height={200}
+          className={`pose-image ${imageLoaded ? 'loaded' : ''}`}
+          onLoad={() => setImageLoaded(true)}
+          placeholder="blur"
+          blurDataURL={placeholderImage}
+        />
+        {!imageLoaded && <div className="image-placeholder"></div>}
+        
+        {pose.scene_category && (
+          <div className="pose-category-badge">
+            {pose.scene_category}
+          </div>
+        )}
+        
+        <div className="pose-view-count">
+          👁️ {pose.view_count || 0}
+        </div>
+      </div>
+      
+      <div className="pose-overlay">
+        <h3 className="pose-title">{pose.title}</h3>
+        {pose.description && (
+          <p className="pose-description">{pose.description}</p>
+        )}
+        <div className="pose-tags">
+          {pose.ai_tags && pose.ai_tags.split(',').slice(0, 3).map((tag, index) => (
+            <span key={index} className="tag">{tag.trim()}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// 姿势详情模态框组件
+function PoseModal({ pose, onClose }) {
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [onClose])
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>×</button>
+        <div className="modal-body">
+          <Image
+            src={pose.oss_url}
+            alt={pose.title}
+            width={600}
+            height={400}
+            className="modal-image"
+          />
+          <div className="modal-info">
+            <h2>{pose.title}</h2>
+            <p>{pose.description}</p>
+            <div className="modal-tags">
+              {pose.ai_tags && pose.ai_tags.split(',').map((tag, index) => (
+                <span key={index} className="tag">{tag.trim()}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Loading 组件 - 只定义一次
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="loading-spinner"></div>
+      <span className="ml-2">加载中...</span>
+    </div>
+  )
+}
+
 // 将使用 useSearchParams 的逻辑提取到单独组件
 function PosesPageContent() {
   const searchParams = useSearchParams()
@@ -156,23 +249,23 @@ function PosesPageContent() {
       {/* 筛选区域 */}
       <section className="filters-section">
         <div className="container">
-      {/* 分类筛选 */}
-      <section className="categories-section">
-        <div className="container">
-          <div className="categories-grid">
-            {filterOptions.categories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => handleFilterChange('category', category.id)}
-                className={`category-tag ${filters.category === category.id ? 'active' : ''}`}
-              >
-                <span className="category-icon">{category.icon}</span>
-                {category.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
+          {/* 分类筛选 */}
+          <section className="categories-section">
+            <div className="container">
+              <div className="categories-grid">
+                {filterOptions.categories.map((category) => (
+                  <button
+                    key={category.id}
+                    onClick={() => handleFilterChange('category', category.id)}
+                    className={`category-tag ${filters.category === category.id ? 'active' : ''}`}
+                  >
+                    <span className="category-icon">{category.icon}</span>
+                    {category.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
 
           {/* 其他筛选 */}
           <div className="advanced-filters">
@@ -274,109 +367,7 @@ function PosesPageContent() {
   )
 }
 
-// Loading 组件
-function LoadingFallback() {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="loading-spinner"></div>
-      <span className="ml-2">加载中...</span>
-    </div>
-  )
-}
-
-// 主导出组件，使用 Suspense 包装
-export default function PosesPage() {
-  return (
-    <Suspense fallback={<LoadingFallback />}>
-      <PosesPageContent />
-    </Suspense>
-  )
-}
-
-// 姿势卡片组件 - 移到独立组件
-function PoseCard({ pose, onClick }) {
-  const [imageLoaded, setImageLoaded] = useState(false)
-  const placeholderImage = "data:image/svg+xml,%3Csvg width='280' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23f7fafc'/%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='16' fill='%23a0aec0' text-anchor='middle' dy='.3em'%3E摄影姿势%3C/text%3E%3C/svg%3E"
-
-  return (
-    <div className="pose-card" onClick={onClick}>
-      <div className="pose-image-container">
-        <Image
-          src={pose.oss_url || placeholderImage}
-          alt={pose.title}
-          width={280}
-          height={200}
-          className={`pose-image ${imageLoaded ? 'loaded' : ''}`}
-          onLoad={() => setImageLoaded(true)}
-          placeholder="blur"
-          blurDataURL={placeholderImage}
-        />
-        {!imageLoaded && <div className="image-placeholder"></div>}
-        
-        {pose.scene_category && (
-          <div className="pose-category-badge">
-            {pose.scene_category}
-          </div>
-        )}
-        
-        <div className="pose-view-count">
-          👁️ {pose.view_count || 0}
-        </div>
-      </div>
-      
-      <div className="pose-overlay">
-        <h3 className="pose-title">{pose.title}</h3>
-        {pose.description && (
-          <p className="pose-description">{pose.description}</p>
-        )}
-        <div className="pose-tags">
-          {pose.ai_tags && pose.ai_tags.split(',').slice(0, 3).map((tag, index) => (
-            <span key={index} className="tag">{tag.trim()}</span>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// 姿势详情模态框 - 移到独立组件
-function PoseModal({ pose, onClose }) {
-  useEffect(() => {
-    const handleEscape = (e) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
-  }, [onClose])
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose}>×</button>
-        <div className="modal-body">
-          <Image
-            src={pose.oss_url}
-            alt={pose.title}
-            width={600}
-            height={400}
-            className="modal-image"
-          />
-          <div className="modal-info">
-            <h2>{pose.title}</h2>
-            <p>{pose.description}</p>
-            <div className="modal-tags">
-              {pose.ai_tags && pose.ai_tags.split(',').map((tag, index) => (
-                <span key={index} className="tag">{tag.trim()}</span>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// 主导出组件，使用 Suspense 包装
+// 主导出组件，使用 Suspense 包装 - 只导出一次
 export default function PosesPage() {
   return (
     <Suspense fallback={<LoadingFallback />}>
