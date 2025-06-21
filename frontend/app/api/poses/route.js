@@ -23,8 +23,15 @@ export async function GET(request) {
       params.append('sort', searchParams.get('sort'))
     }
     
-    // 请求后端API
-    const response = await fetch(`http://localhost:8000/api/v1/poses?${params}`)
+    // 请求后端API，增加超时控制
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000) // 5秒超时
+    
+    const response = await fetch(`http://localhost:8000/api/v1/poses?${params}`, {
+      signal: controller.signal
+    })
+    
+    clearTimeout(timeoutId)
     
     if (response.ok) {
       const data = await response.json()
@@ -35,8 +42,10 @@ export async function GET(request) {
   } catch (error) {
     console.log('Backend not available, using mock data:', error)
     
-    // 返回模拟数据
+    // 返回模拟数据，确保结构正确
     const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('per_page') || '20')
+    
     const mockPoses = [
       {
         id: 1,
@@ -80,7 +89,7 @@ export async function GET(request) {
       poses: mockPoses,
       total: mockPoses.length,
       page: page,
-      per_page: 20,
+      per_page: limit,
       hasMore: false
     })
   }

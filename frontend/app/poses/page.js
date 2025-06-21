@@ -7,13 +7,14 @@ export default function Home() {
   const [scenes, setScenes] = useState([])
   const [recentPoses, setRecentPoses] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchSuggestions, setSearchSuggestions] = useState([])
   const [showSuggestions, setShowSuggestions] = useState(false)
 
   useEffect(() => {
-    fetchScenes()
-    fetchRecentPoses()
+    Promise.all([fetchScenes(), fetchRecentPoses()])
+      .finally(() => setLoading(false))
   }, [])
 
   const fetchScenes = async () => {
@@ -21,11 +22,13 @@ export default function Home() {
       const response = await fetch('/api/scenes')
       if (response.ok) {
         const data = await response.json()
-        setScenes(data)
+        setScenes(data.scenes || data || [])
+      } else {
+        throw new Error('API response not ok')
       }
     } catch (err) {
       console.log('Scenes API not ready:', err)
-      // 使用基于后端数据库结构的默认场景
+      // 使用默认场景数据
       setScenes([
         { id: 'indoor', name: '室内拍摄', icon: '🏠', pose_count: 0 },
         { id: 'outdoor', name: '户外拍摄', icon: '🌿', pose_count: 0 },
@@ -45,11 +48,12 @@ export default function Home() {
       if (response.ok) {
         const data = await response.json()
         setRecentPoses(data.poses || [])
+      } else {
+        throw new Error('API response not ok')
       }
     } catch (err) {
       console.log('Recent poses API not ready:', err)
-    } finally {
-      setLoading(false)
+      setRecentPoses([]) // 设置为空数组，避免显示加载状态
     }
   }
 
@@ -78,6 +82,17 @@ export default function Home() {
   }
 
   const placeholderImage = "data:image/svg+xml,%3Csvg width='280' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23f7fafc'/%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='16' fill='%23a0aec0' text-anchor='middle' dy='.3em'%3E摄影姿势%3C/text%3E%3C/svg%3E"
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="loading-spinner mb-4"></div>
+          <p>系统初始化中...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen">
