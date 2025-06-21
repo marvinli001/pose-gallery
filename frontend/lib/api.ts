@@ -9,7 +9,6 @@ const api = axios.create({
 });
 
 export const searchAPI = {
-  // 搜索姿势
   searchPoses: async (params: {
     q: string;
     category?: string;
@@ -20,7 +19,6 @@ export const searchAPI = {
     return response.data;
   },
 
-  // 获取搜索建议
   getSuggestions: async (prefix: string): Promise<string[]> => {
     const response = await api.get('/search/suggestions', {
       params: { prefix, limit: 10 }
@@ -28,7 +26,6 @@ export const searchAPI = {
     return response.data;
   },
 
-  // 获取分类
   getCategories: async (): Promise<Category[]> => {
     const response = await api.get('/categories');
     return response.data;

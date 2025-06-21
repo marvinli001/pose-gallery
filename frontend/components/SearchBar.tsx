@@ -104,7 +104,7 @@ export default function SearchBar({ onSearch, initialValue = '' }: SearchBarProp
             }}
             onFocus={() => setShowSuggestions(true)}
             onKeyDown={handleKeyDown}
-            placeholder="搜索姿势：如"咖啡馆"、"街拍"、"坐姿"..."
+            placeholder="搜索姿势：如「咖啡馆」、「街拍」、「坐姿」..."
             className="w-full px-4 py-3 pr-12 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
           />
           <button
