@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # 后端服务 - 连接外部数据库
   backend:
-    image: 040317/pose-gallery-backend:latest
+    image: 040317/pose-gallery-backend:main
     ports:
       - "8000:8000"
     environment:
@@ -40,7 +40,7 @@ services:
 
   # 前端服务
   frontend:
-    image: 040317/pose-gallery-frontend:latest
+    image: 040317/pose-gallery-frontend:main
     ports:
       - "3000:3000"
     environment:
