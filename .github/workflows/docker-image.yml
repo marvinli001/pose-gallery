@@ -9,8 +9,8 @@ on:
 
 env:
   REGISTRY: docker.io
-  BACKEND_IMAGE_NAME: 040317/pose-gallery-backend:latest
-  FRONTEND_IMAGE_NAME: 040317/pose-gallery-frontend:latest
+  BACKEND_IMAGE_NAME: 040317/pose-gallery-backend
+  FRONTEND_IMAGE_NAME: 040317/pose-gallery-frontend
 
 jobs:
   build-and-push:
