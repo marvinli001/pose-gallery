@@ -1,13 +1,22 @@
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY frontend/package*.json ./frontend/
-RUN cd frontend && npm install
-COPY frontend ./frontend
-RUN cd frontend && npm run build
+FROM node:18-alpine
 
-FROM node:20-alpine
+# 设置工作目录
 WORKDIR /app
-COPY --from=builder /app/frontend .
-ENV NODE_ENV=production
+
+# 复制package文件
+COPY package*.json ./
+
+# 安装依赖
+RUN npm ci --only=production
+
+# 复制应用代码
+COPY . .
+
+# 构建应用
+RUN npm run build
+
+# 暴露端口
 EXPOSE 3000
+
+# 启动命令
 CMD ["npm", "start"]

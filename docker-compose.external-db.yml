@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # 后端服务 - 连接外部数据库
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # 外部数据库配置
+      - DB_HOST=${EXTERNAL_DB_HOST}
+      - DB_PORT=${EXTERNAL_DB_PORT:-3306}
+      - DB_USER=${EXTERNAL_DB_USER}
+      - DB_PASS=${EXTERNAL_DB_PASS}
+      - DB_NAME=${EXTERNAL_DB_NAME}
+      
+      # 外部Redis配置
+      - REDIS_HOST=${EXTERNAL_REDIS_HOST}
+      - REDIS_PORT=${EXTERNAL_REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${EXTERNAL_REDIS_PASSWORD}
+      - REDIS_DB=${EXTERNAL_REDIS_DB:-0}
+      
+      # 其他配置
+      - OSS_ENDPOINT=${OSS_ENDPOINT}
+      - OSS_ACCESS_KEY=${OSS_ACCESS_KEY}
+      - OSS_SECRET_KEY=${OSS_SECRET_KEY}
+      - OSS_BUCKET=${OSS_BUCKET}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4-vision-preview}
+    volumes:
+      - ./backend/logs:/app/logs
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - app-network
+    restart: unless-stopped
+
+networks:
+  app-network:
+    driver: bridge
