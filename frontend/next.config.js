@@ -1,17 +1,23 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // 移除过时的 experimental.appDir 配置
   images: {
+    domains: ['localhost'],
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: '**.aliyuncs.com',
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '8000',
       },
-      {
-        protocol: 'https',
-        hostname: 'your-oss-bucket.oss-cn-**.aliyuncs.com',
-      },
-      // 添加其他需要的图片域名
     ],
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://localhost:8000/api/:path*',
+      },
+    ];
   },
 }
 
