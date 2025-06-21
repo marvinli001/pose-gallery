@@ -7,7 +7,7 @@ export async function GET() {
       const data = await response.json()
       return Response.json(data)
     }
-  } catch (error) {
+  } catch {} {
     console.log('Backend not available, using mock data')
   }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Pose } from '@/lib/types';
 
@@ -38,29 +38,24 @@ export default function ImageModal({ pose, onClose }: ImageModalProps) {
         className="relative max-w-7xl max-h-[90vh] mx-4"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 关闭按钮 */}
         <button
           onClick={onClose}
-          className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
+          className="absolute -top-10 right-0 text-white hover:text-gray-300 text-xl z-10"
         >
-          <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          ✕ 关闭
         </button>
 
-        <div className="bg-white rounded-lg overflow-hidden flex flex-col lg:flex-row">
+        <div className="bg-white rounded-lg overflow-hidden shadow-2xl flex flex-col lg:flex-row max-h-[80vh]">
           {/* 图片区域 */}
-          <div className="relative lg:w-2/3 bg-gray-100">
-            <div className="relative aspect-[3/4] lg:aspect-auto lg:h-[80vh]">
-              <Image
-                src={imageError ? '/placeholder.svg' : pose.oss_url}
-                alt={pose.title}
-                fill
-                className="object-contain"
-                onError={() => setImageError(true)}
-                priority
-              />
-            </div>
+          <div className="lg:w-2/3 relative bg-gray-100 flex items-center justify-center min-h-[300px]">
+            <Image
+              src={imageError ? '/placeholder.svg' : pose.oss_url}
+              alt={pose.title}
+              width={800}
+              height={600}
+              className="max-w-full max-h-full object-contain"
+              onError={() => setImageError(true)}
+            />
           </div>
 
           {/* 信息区域 */}
@@ -112,7 +107,7 @@ export default function ImageModal({ pose, onClose }: ImageModalProps) {
               </div>
             )}
 
-// components/ImageModal.tsx (继续)
+            {/* 修复注释问题 - 将注释放在大括号内 */}
             {pose.ai_tags && (
               <div className="mb-4">
                 <h3 className="text-sm font-medium text-gray-500 mb-2">标签</h3>
@@ -128,8 +123,10 @@ export default function ImageModal({ pose, onClose }: ImageModalProps) {
 
             <div className="mt-6 pt-6 border-t border-gray-200">
               <div className="flex items-center justify-between text-sm text-gray-500">
-                <span>浏览次数：{pose.view_count}</span>
-                <span>{new Date(pose.created_at).toLocaleDateString('zh-CN')}</span>
+                <span>浏览: {pose.view_count || 0}</span>
+                <span>
+                  {pose.created_at && new Date(pose.created_at).toLocaleDateString('zh-CN')}
+                </span>
               </div>
             </div>
           </div>

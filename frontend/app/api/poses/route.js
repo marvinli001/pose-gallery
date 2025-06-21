@@ -39,7 +39,7 @@ export async function GET(request) {
     } else {
       throw new Error(`Backend API error: ${response.status}`)
     }
-  } catch (error) {
+  } catch {} {
     console.log('Backend not available, using mock data:', error)
     
     // 返回模拟数据，确保结构正确

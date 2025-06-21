@@ -1,16 +1,18 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 
-export default function PosesPage() {
+// 将使用 useSearchParams 的逻辑提取到单独组件
+function PosesPageContent() {
   const searchParams = useSearchParams()
   const [poses, setPoses] = useState([])
   const [loading, setLoading] = useState(true)
   const [hasMore, setHasMore] = useState(true)
   const [page, setPage] = useState(1)
-  const [viewMode, setViewMode] = useState('grid') // 'grid' | 'waterfall'
+  const [viewMode, setViewMode] = useState('grid')
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '')
   const [selectedPose, setSelectedPose] = useState(null)
   const [filters, setFilters] = useState({
@@ -35,11 +37,13 @@ export default function PosesPage() {
     ]
   }
 
+  // 修复 useEffect 依赖
   useEffect(() => {
     fetchPoses(true)
-  }, [filters])
+  }, [fetchPoses])
 
-  const fetchPoses = async (reset = false) => {
+  // 将 fetchPoses 包装为 useCallback 以避免无限循环
+  const fetchPoses = useCallback(async (reset = false) => {
     setLoading(reset)
     try {
       const queryParams = new URLSearchParams({
@@ -67,13 +71,14 @@ export default function PosesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [page, filters])
 
+  // loadMore 也需要更新依赖
   const loadMore = useCallback(() => {
     if (!loading && hasMore) {
       fetchPoses(false)
     }
-  }, [loading, hasMore])
+  }, [loading, hasMore, fetchPoses])
 
   // 无限滚动
   useEffect(() => {
@@ -99,8 +104,6 @@ export default function PosesPage() {
     e.preventDefault()
     setFilters(prev => ({ ...prev, search: searchQuery }))
   }
-
-  const placeholderImage = "data:image/svg+xml,%3Csvg width='280' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23f7fafc'/%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='16' fill='%23a0aec0' text-anchor='middle' dy='.3em'%3E摄影姿势%3C/text%3E%3C/svg%3E"
 
   return (
     <div className="min-h-screen">
@@ -129,18 +132,23 @@ export default function PosesPage() {
         </div>
       </header>
 
-      {/* 搜索栏 */}
-      <section className="poses-search-section">
+      {/* 搜索区域 */}
+      <section className="search-section">
         <div className="container">
+          <h2 className="search-title">发现完美拍照姿势</h2>
+          <p className="search-subtitle">让每一次拍摄都充满创意和美感</p>
+          
           <form onSubmit={handleSearchSubmit} className="search-box">
-            <input 
-              type="text" 
-              placeholder="搜索摄影姿势..." 
-              className="search-input"
+            <input
+              type="text"
+              placeholder="搜索姿势、场景、风格..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              className="search-input"
             />
-            <button type="submit" className="btn search-btn">搜索</button>
+            <button type="submit" className="btn search-btn">
+              搜索
+            </button>
           </form>
         </div>
       </section>
@@ -148,22 +156,23 @@ export default function PosesPage() {
       {/* 筛选区域 */}
       <section className="filters-section">
         <div className="container">
-          {/* 分类筛选 */}
-          <div className="filter-group">
-            <span className="filter-label">场景：</span>
-            <div className="filter-options">
-              {filterOptions.categories.map(cat => (
-                <button 
-                  key={cat.id}
-                  className={`category-tag ${filters.category === cat.id ? 'active' : ''}`}
-                  onClick={() => handleFilterChange('category', cat.id)}
-                >
-                  <span className="category-icon">{cat.icon}</span>
-                  {cat.name}
-                </button>
-              ))}
-            </div>
+      {/* 分类筛选 */}
+      <section className="categories-section">
+        <div className="container">
+          <div className="categories-grid">
+            {filterOptions.categories.map((category) => (
+              <button
+                key={category.id}
+                onClick={() => handleFilterChange('category', category.id)}
+                className={`category-tag ${filters.category === category.id ? 'active' : ''}`}
+              >
+                <span className="category-icon">{category.icon}</span>
+                {category.name}
+              </button>
+            ))}
           </div>
+        </div>
+      </section>
 
           {/* 其他筛选 */}
           <div className="advanced-filters">
@@ -212,7 +221,7 @@ export default function PosesPage() {
       </section>
 
       {/* 姿势列表 */}
-      <main className="poses-content">
+      <main className="main-content">
         <div className="container">
           {loading && poses.length === 0 ? (
             <div className="loading-state">
@@ -265,6 +274,25 @@ export default function PosesPage() {
   )
 }
 
+// Loading 组件
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="loading-spinner"></div>
+      <span className="ml-2">加载中...</span>
+    </div>
+  )
+}
+
+// 主导出组件，使用 Suspense 包装
+export default function PosesPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <PosesPageContent />
+    </Suspense>
+  )
+}
+
 // 姿势卡片组件
 function PoseCard({ pose, onClick }) {
   const [imageLoaded, setImageLoaded] = useState(false)
@@ -273,12 +301,15 @@ function PoseCard({ pose, onClick }) {
   return (
     <div className="pose-card" onClick={onClick}>
       <div className="pose-image-container">
-        <img
+        <Image
           src={pose.oss_url || placeholderImage}
           alt={pose.title}
+          width={280}
+          height={200}
           className={`pose-image ${imageLoaded ? 'loaded' : ''}`}
           onLoad={() => setImageLoaded(true)}
-          loading="lazy"
+          placeholder="blur"
+          blurDataURL={placeholderImage}
         />
         {!imageLoaded && <div className="image-placeholder"></div>}
         
@@ -336,7 +367,13 @@ function PoseModal({ pose, onClose }) {
         
         <div className="pose-modal-body">
           <div className="pose-modal-image">
-            <img src={pose.oss_url} alt={pose.title} />
+            <Image 
+              src={pose.oss_url} 
+              alt={pose.title} 
+              width={600}
+              height={400}
+              style={{ objectFit: 'contain' }}
+            />
           </div>
           
           <div className="pose-modal-info">

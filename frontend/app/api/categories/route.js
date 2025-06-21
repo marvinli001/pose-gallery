@@ -11,7 +11,7 @@ export async function GET() {
     
     const data = await response.json()
     return Response.json(data)
-  } catch (error) {
+  } catch {} {
     // 返回默认分类
     return Response.json([
       { id: 1, name: '人像摄影' },

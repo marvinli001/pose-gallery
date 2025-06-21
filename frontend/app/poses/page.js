@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function Home() {
   const [scenes, setScenes] = useState([])
   const [recentPoses, setRecentPoses] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchSuggestions, setSearchSuggestions] = useState([])
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -190,7 +190,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 最新姿势预览 - 保持原有卡片样式 */}
+      {/* 最新姿势预览 - 使用 Next.js Image 组件 */}
       {recentPoses.length > 0 && (
         <section className="recent-poses-section">
           <div className="container">
@@ -204,10 +204,14 @@ export default function Home() {
             <div className="poses-grid preview-grid">
               {recentPoses.map((pose) => (
                 <div key={pose.id} className="pose-card">
-                  <img 
-                    src={pose.image_url || placeholderImage} 
+                  <Image 
+                    src={pose.image_url || placeholderImage}
                     alt={pose.title}
+                    width={280}
+                    height={200}
                     className="pose-image"
+                    placeholder="blur"
+                    blurDataURL={placeholderImage}
                   />
                   <div className="pose-info">
                     <h3>{pose.title}</h3>
