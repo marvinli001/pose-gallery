@@ -37,12 +37,7 @@ function PosesPageContent() {
     ]
   }
 
-  // 修复 useEffect 依赖
-  useEffect(() => {
-    fetchPoses(true)
-  }, [fetchPoses])
-
-  // 将 fetchPoses 包装为 useCallback 以避免无限循环
+  // 先定义 fetchPoses，确保在 useEffect 前声明
   const fetchPoses = useCallback(async (reset = false) => {
     setLoading(reset)
     try {
@@ -73,12 +68,17 @@ function PosesPageContent() {
     }
   }, [page, filters])
 
-  // loadMore 也需要更新依赖
+  // loadMore 也需要正确的依赖顺序
   const loadMore = useCallback(() => {
     if (!loading && hasMore) {
       fetchPoses(false)
     }
   }, [loading, hasMore, fetchPoses])
+
+  // 现在可以安全地使用 fetchPoses
+  useEffect(() => {
+    fetchPoses(true)
+  }, [fetchPoses])
 
   // 无限滚动
   useEffect(() => {
@@ -293,7 +293,7 @@ export default function PosesPage() {
   )
 }
 
-// 姿势卡片组件
+// 姿势卡片组件 - 移到独立组件
 function PoseCard({ pose, onClick }) {
   const [imageLoaded, setImageLoaded] = useState(false)
   const placeholderImage = "data:image/svg+xml,%3Csvg width='280' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23f7fafc'/%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='16' fill='%23a0aec0' text-anchor='middle' dy='.3em'%3E摄影姿势%3C/text%3E%3C/svg%3E"
@@ -313,14 +313,12 @@ function PoseCard({ pose, onClick }) {
         />
         {!imageLoaded && <div className="image-placeholder"></div>}
         
-        {/* 场景标签 */}
         {pose.scene_category && (
           <div className="pose-category-badge">
             {pose.scene_category}
           </div>
         )}
         
-        {/* 浏览次数 */}
         <div className="pose-view-count">
           👁️ {pose.view_count || 0}
         </div>
@@ -341,84 +339,58 @@ function PoseCard({ pose, onClick }) {
   )
 }
 
-// 姿势详情模态框
+// 姿势详情模态框 - 移到独立组件
 function PoseModal({ pose, onClose }) {
   useEffect(() => {
-    const handleEsc = (e) => {
+    const handleEscape = (e) => {
       if (e.key === 'Escape') onClose()
     }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
   }, [onClose])
 
-  useEffect(() => {
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = 'unset'
-    }
-  }, [])
-
   return (
-    <div className="pose-modal-overlay" onClick={onClose}>
-      <div className="pose-modal-content" onClick={(e) => e.stopPropagation()}>
-        <button className="pose-modal-close" onClick={onClose}>
-          ✕
-        </button>
-        
-        <div className="pose-modal-body">
-          <div className="pose-modal-image">
-            <Image 
-              src={pose.oss_url} 
-              alt={pose.title} 
-              width={600}
-              height={400}
-              style={{ objectFit: 'contain' }}
-            />
-          </div>
-          
-          <div className="pose-modal-info">
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>×</button>
+        <div className="modal-body">
+          <Image
+            src={pose.oss_url}
+            alt={pose.title}
+            width={600}
+            height={400}
+            className="modal-image"
+          />
+          <div className="modal-info">
             <h2>{pose.title}</h2>
-            {pose.description && <p className="description">{pose.description}</p>}
-            
-            {pose.scene_category && (
-              <div className="info-item">
-                <span className="label">场景:</span>
-                <span className="value">{pose.scene_category}</span>
-              </div>
-            )}
-            
-            {pose.angle && (
-              <div className="info-item">
-                <span className="label">角度:</span>
-                <span className="value">{pose.angle}</span>
-              </div>
-            )}
-            
-            {pose.shooting_tips && (
-              <div className="info-item tips">
-                <span className="label">拍摄建议:</span>
-                <p className="tips-content">💡 {pose.shooting_tips}</p>
-              </div>
-            )}
-            
-            {pose.ai_tags && (
-              <div className="info-item">
-                <span className="label">标签:</span>
-                <div className="tags">
-                  {pose.ai_tags.split(',').map((tag, index) => (
-                    <span key={index} className="tag">#{tag.trim()}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            <div className="pose-stats">
-              <span>浏览: {pose.view_count || 0}</span>
-              <span>时间: {new Date(pose.created_at).toLocaleDateString('zh-CN')}</span>
+            <p>{pose.description}</p>
+            <div className="modal-tags">
+              {pose.ai_tags && pose.ai_tags.split(',').map((tag, index) => (
+                <span key={index} className="tag">{tag.trim()}</span>
+              ))}
             </div>
           </div>
         </div>
       </div>
     </div>
+  )
+}
+
+// Loading 组件
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="loading-spinner"></div>
+      <span className="ml-2">加载中...</span>
+    </div>
+  )
+}
+
+// 主导出组件，使用 Suspense 包装
+export default function PosesPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <PosesPageContent />
+    </Suspense>
   )
 }

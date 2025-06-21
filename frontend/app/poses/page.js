@@ -12,11 +12,6 @@ export default function Home() {
   const [searchSuggestions, setSearchSuggestions] = useState([])
   const [showSuggestions, setShowSuggestions] = useState(false)
 
-  useEffect(() => {
-    Promise.all([fetchScenes(), fetchRecentPoses()])
-      .finally(() => setLoading(false))
-  }, [])
-
   const fetchScenes = async () => {
     try {
       const response = await fetch('/api/scenes')
@@ -56,6 +51,11 @@ export default function Home() {
       setRecentPoses([]) // 设置为空数组，避免显示加载状态
     }
   }
+
+  useEffect(() => {
+    Promise.all([fetchScenes(), fetchRecentPoses()])
+      .finally(() => setLoading(false))
+  }, [])
 
   const handleSearch = async (query) => {
     if (query.length > 1) {
