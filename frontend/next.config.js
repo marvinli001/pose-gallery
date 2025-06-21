@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 移除过时的 experimental.appDir 配置
+  // 启用 standalone 模式用于 Docker
+  output: 'standalone',
+  
   images: {
     domains: ['localhost'],
     remotePatterns: [
@@ -9,13 +11,20 @@ const nextConfig = {
         hostname: 'localhost',
         port: '8000',
       },
+      {
+        protocol: 'https',
+        hostname: 'your-domain.com',
+      },
     ],
   },
+  
   async rewrites() {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:8000/api/:path*',
+        destination: process.env.NEXT_PUBLIC_API_URL 
+          ? `${process.env.NEXT_PUBLIC_API_URL}/api/:path*`
+          : 'http://localhost:8000/api/:path*',
       },
     ];
   },
