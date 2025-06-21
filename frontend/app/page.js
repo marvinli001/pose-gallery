@@ -37,12 +37,7 @@ function PosesPageContent() {
     ]
   }
 
-  // 修复 useEffect 依赖
-  useEffect(() => {
-    fetchPoses(true)
-  }, [fetchPoses])
-
-  // 将 fetchPoses 包装为 useCallback 以避免无限循环
+  // 将 fetchPoses 包装为 useCallback - 必须在 useEffect 之前定义
   const fetchPoses = useCallback(async (reset = false) => {
     setLoading(reset)
     try {
@@ -79,6 +74,11 @@ function PosesPageContent() {
       fetchPoses(false)
     }
   }, [loading, hasMore, fetchPoses])
+
+  // 现在可以安全地在 useEffect 中使用 fetchPoses
+  useEffect(() => {
+    fetchPoses(true)
+  }, [filters]) // 只在 filters 变化时重新加载
 
   // 无限滚动
   useEffect(() => {
@@ -156,23 +156,23 @@ function PosesPageContent() {
       {/* 筛选区域 */}
       <section className="filters-section">
         <div className="container">
-      {/* 分类筛选 */}
-      <section className="categories-section">
-        <div className="container">
-          <div className="categories-grid">
-            {filterOptions.categories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => handleFilterChange('category', category.id)}
-                className={`category-tag ${filters.category === category.id ? 'active' : ''}`}
-              >
-                <span className="category-icon">{category.icon}</span>
-                {category.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
+          {/* 分类筛选 */}
+          <section className="categories-section">
+            <div className="container">
+              <div className="categories-grid">
+                {filterOptions.categories.map((category) => (
+                  <button
+                    key={category.id}
+                    onClick={() => handleFilterChange('category', category.id)}
+                    className={`category-tag ${filters.category === category.id ? 'active' : ''}`}
+                  >
+                    <span className="category-icon">{category.icon}</span>
+                    {category.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
 
           {/* 其他筛选 */}
           <div className="advanced-filters">
@@ -296,20 +296,34 @@ export default function PosesPage() {
 // 姿势卡片组件
 function PoseCard({ pose, onClick }) {
   const [imageLoaded, setImageLoaded] = useState(false)
+  const [imageError, setImageError] = useState(false)
   const placeholderImage = "data:image/svg+xml,%3Csvg width='280' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23f7fafc'/%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='16' fill='%23a0aec0' text-anchor='middle' dy='.3em'%3E摄影姿势%3C/text%3E%3C/svg%3E"
+
+  const handleImageError = () => {
+    console.error('Image load error for pose:', pose.id, pose.oss_url)
+    setImageError(true)
+    setImageLoaded(true)
+  }
+
+  const handleImageLoad = () => {
+    console.log('Image loaded successfully for pose:', pose.id)
+    setImageLoaded(true)
+  }
 
   return (
     <div className="pose-card" onClick={onClick}>
       <div className="pose-image-container">
         <Image
-          src={pose.oss_url || placeholderImage}
-          alt={pose.title}
+          src={imageError ? placeholderImage : (pose.oss_url || placeholderImage)}
+          alt={pose.title || '摄影姿势'}
           width={280}
           height={200}
           className={`pose-image ${imageLoaded ? 'loaded' : ''}`}
-          onLoad={() => setImageLoaded(true)}
+          onLoad={handleImageLoad}
+          onError={handleImageError}
           placeholder="blur"
           blurDataURL={placeholderImage}
+          unoptimized={true}
         />
         {!imageLoaded && <div className="image-placeholder"></div>}
         
@@ -341,8 +355,10 @@ function PoseCard({ pose, onClick }) {
   )
 }
 
-// 姿势详情模态框
+// 修改 PoseModal 组件中的图片部分
 function PoseModal({ pose, onClose }) {
+  const [imageError, setImageError] = useState(false)
+
   useEffect(() => {
     const handleEsc = (e) => {
       if (e.key === 'Escape') onClose()
@@ -358,6 +374,13 @@ function PoseModal({ pose, onClose }) {
     }
   }, [])
 
+  const handleImageError = () => {
+    console.error('Modal image load error for pose:', pose.id, pose.oss_url)
+    setImageError(true)
+  }
+
+  const placeholderImage = "data:image/svg+xml,%3Csvg width='800' height='600' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23f7fafc'/%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='24' fill='%23a0aec0' text-anchor='middle' dy='.3em'%3E图片加载失败%3C/text%3E%3C/svg%3E"
+
   return (
     <div className="pose-modal-overlay" onClick={onClose}>
       <div className="pose-modal-content" onClick={(e) => e.stopPropagation()}>
@@ -368,11 +391,13 @@ function PoseModal({ pose, onClose }) {
         <div className="pose-modal-body">
           <div className="pose-modal-image">
             <Image 
-              src={pose.oss_url} 
-              alt={pose.title} 
-              width={600}
-              height={400}
-              style={{ objectFit: 'contain' }}
+              src={imageError ? placeholderImage : (pose.oss_url || placeholderImage)}
+              alt={pose.title || '摄影姿势'}
+              width={800}  // 从 600 增加到 800
+              height={600} // 从 400 增加到 600
+              style={{ objectFit: 'contain', width: '100%', height: 'auto' }}
+              onError={handleImageError}
+              unoptimized={true}
             />
           </div>
           
@@ -414,7 +439,9 @@ function PoseModal({ pose, onClose }) {
             
             <div className="pose-stats">
               <span>浏览: {pose.view_count || 0}</span>
-              <span>时间: {new Date(pose.created_at).toLocaleDateString('zh-CN')}</span>
+              {pose.created_at && (
+                <span>时间: {new Date(pose.created_at).toLocaleDateString('zh-CN')}</span>
+              )}
             </div>
           </div>
         </div>

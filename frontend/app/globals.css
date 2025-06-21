@@ -636,7 +636,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2rem;
+  padding: 20px;
 }
 
 .pose-modal-content {
@@ -777,30 +777,21 @@ body {
   font-size: 0.875rem;
 }
 
-/* 响应式设计 */
+/* 响应式调整 */
 @media (max-width: 768px) {
-  .pose-modal-body {
+  .pose-modal-content {
     flex-direction: column;
-    height: auto;
+    max-width: 95vw;
   }
   
   .pose-modal-image {
-    flex: none;
-    height: 50vh;
+    flex: 1;
+    min-height: 300px;
   }
   
   .pose-modal-info {
     flex: none;
+    max-height: 300px;
     min-width: auto;
-    padding: 1rem;
-  }
-  
-  .filter-row {
-    flex-direction: column;
-    gap: 1rem;
-  }
-  
-  .view-controls {
-    margin-top: 1rem;
   }
 }
