@@ -35,7 +35,7 @@ from app.models import Pose, Tag, PoseTag
 from app.utils.storage_client import OSSClient
 from app.services.ai_analyzer import AIAnalyzer
 from app.config import settings
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy import text
 
 # 确保日志目录存在
@@ -52,6 +52,9 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# 创建会话工厂
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 class ImageProcessor:
     """图片自动化处理器"""
@@ -126,7 +129,9 @@ class ImageProcessor:
             self.print_stats()
             
     def process_single_image_from_oss(self, oss_key: str) -> bool:
-        """处理OSS中的单张图片"""
+        """处理OSS中的单张图片 - 每个线程使用独立的数据库会话"""
+        # 创建独立的数据库会话
+        db = SessionLocal()
         try:
             logger.info(f"处理图片: {oss_key}")
             
@@ -150,8 +155,8 @@ class ImageProcessor:
             }
             
             pose = Pose(**pose_data)
-            self.db.add(pose)
-            self.db.commit()
+            db.add(pose)
+            db.commit()
             
             logger.info(f"图片基础信息已入库，ID: {pose.id}")
             
@@ -178,13 +183,13 @@ class ImageProcessor:
                     setattr(pose, key, value)
                     
                 # 处理标签
-                self.process_tags(pose, analysis.get('tags', []))
+                self.process_tags_with_session(db, pose, analysis.get('tags', []))
                 
                 # 处理道具（如果有）
                 if analysis.get('props'):
                     pose.props = json.dumps(analysis['props'], ensure_ascii=False)
                 
-                self.db.commit()
+                db.commit()
                 
                 logger.info(f"✅ AI分析完成: {updated_data['title']}")
                 logger.info(f"   场景: {updated_data['scene_category']}")
@@ -196,7 +201,7 @@ class ImageProcessor:
                 # AI分析失败，标记为失败状态
                 pose.processing_status = 'failed'
                 pose.error_message = 'AI分析失败'
-                self.db.commit()
+                db.commit()
                 
                 logger.error(f"❌ AI分析失败: {oss_key}")
                 return False
@@ -204,16 +209,19 @@ class ImageProcessor:
         except Exception as e:
             logger.error(f"处理图片失败 {oss_key}: {e}")
             try:
+                db.rollback()
                 if 'pose' in locals():
                     pose.processing_status = 'failed'
                     pose.error_message = str(e)
-                    self.db.commit()
-            except:
-                pass
+                    db.commit()
+            except Exception as rollback_error:
+                logger.error(f"回滚失败: {rollback_error}")
             return False
+        finally:
+            db.close()
             
-    def process_tags(self, pose: Pose, tags: List[str]):
-        """处理图片标签"""
+    def process_tags_with_session(self, db: Session, pose: Pose, tags: List[str]):
+        """处理图片标签 - 使用指定的数据库会话"""
         for tag_name in tags:
             if not tag_name.strip():
                 continue
@@ -221,7 +229,7 @@ class ImageProcessor:
             tag_name = tag_name.strip()
             
             # 查找或创建标签
-            tag = self.db.query(Tag).filter(Tag.name == tag_name).first()
+            tag = db.query(Tag).filter(Tag.name == tag_name).first()
             if not tag:
                 # 分类标签类型
                 tag_category = self.classify_tag(tag_name)
@@ -230,11 +238,11 @@ class ImageProcessor:
                     category=tag_category,
                     usage_count=0
                 )
-                self.db.add(tag)
-                self.db.flush()  # 获取tag.id
+                db.add(tag)
+                db.flush()  # 获取tag.id
                 
             # 创建关联关系
-            pose_tag = self.db.query(PoseTag).filter(
+            pose_tag = db.query(PoseTag).filter(
                 PoseTag.pose_id == pose.id,
                 PoseTag.tag_id == tag.id
             ).first()
@@ -245,10 +253,14 @@ class ImageProcessor:
                     tag_id=tag.id,
                     confidence=0.9
                 )
-                self.db.add(pose_tag)
+                db.add(pose_tag)
                 
                 # 更新标签使用次数
                 tag.usage_count += 1
+
+    def process_tags(self, pose: Pose, tags: List[str]):
+        """处理图片标签 - 使用默认会话"""
+        self.process_tags_with_session(self.db, pose, tags)
                 
     def classify_tag(self, tag_name: str) -> str:
         """分类标签类型"""
