@@ -3,9 +3,7 @@ version: '3.8'
 services:
   # 后端服务 - 连接外部数据库
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: 040317/pose-gallery-backend:latest
     ports:
       - "8000:8000"
     environment:
@@ -30,25 +28,33 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4-vision-preview}
     volumes:
-      - ./backend/logs:/app/logs
+      - ./logs:/app/logs
     networks:
       - app-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # 前端服务
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: 040317/pose-gallery-frontend:latest
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=http://backend:8000
     depends_on:
       - backend
     networks:
       - app-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 networks:
   app-network:
