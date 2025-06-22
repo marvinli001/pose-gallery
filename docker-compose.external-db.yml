@@ -49,8 +49,8 @@ services:
     # 移除ports配置，因为host网络模式下不需要端口映射
     environment:
       # 在host网络中可以直接使用localhost
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-      - BACKEND_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+      - BACKEND_URL=http://127.0.0.1:8000
       # 强制绑定到所有网络接口，忽略主机名
       - HOSTNAME=0.0.0.0
       - PORT=3000

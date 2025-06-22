@@ -28,7 +28,9 @@ export async function GET(request) {
     const timeoutId = setTimeout(() => controller.abort(), 10000) // 10秒超时
     
     // 修改这里：在host网络环境中使用正确的后端地址
-    const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8000'
+    const backendUrl = process.env.BACKEND_URL || 
+                      process.env.NEXT_PUBLIC_API_URL || 
+                      'http://127.0.0.1:8000'
     
     console.log('尝试连接后端:', `${backendUrl}/api/v1/poses?${params}`) // 添加调试日志
     
