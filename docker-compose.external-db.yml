@@ -44,13 +44,16 @@ services:
   # 前端服务
   frontend:
     image: 040317/pose-gallery-frontend:main
+    # 使用host网络模式，自动绑定到主机的3000端口
     network_mode: "host"
-    ports:
-      - "3000:3000"
+    # 移除ports配置，因为host网络模式下不需要端口映射
     environment:
-      # 使用宿主机地址访问后端
+      # 在host网络中可以直接使用localhost
       - NEXT_PUBLIC_API_URL=http://localhost:8000
       - BACKEND_URL=http://localhost:8000
+      # 确保前端绑定到正确的端口
+      - PORT=3000
+      - HOST=0.0.0.0
     depends_on:
       backend:
         condition: service_healthy
