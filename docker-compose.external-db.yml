@@ -51,9 +51,12 @@ services:
       # 在host网络中可以直接使用localhost
       - NEXT_PUBLIC_API_URL=http://localhost:8000
       - BACKEND_URL=http://localhost:8000
-      # 确保前端绑定到正确的端口
+      # 强制绑定到所有网络接口，忽略主机名
+      - HOSTNAME=0.0.0.0
       - PORT=3000
-      - HOST=0.0.0.0
+      
+      # Next.js 特定配置
+      - NEXT_TELEMETRY_DISABLED=1
     depends_on:
       backend:
         condition: service_healthy

@@ -44,7 +44,7 @@ export async function GET(request) {
     } else {
       throw new Error(`Backend API error: ${response.status}`)
     }
-  } catch (error) {  // 修复：添加了 error 参数
+  } catch (error) {  // 确保这里有 error 参数
     console.log('Backend not available, using mock data:', error)
     
     // 返回模拟数据，确保结构正确
