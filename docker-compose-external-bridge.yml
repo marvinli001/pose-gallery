@@ -4,8 +4,8 @@ services:
   # 后端服务 - 连接外部数据库
   backend:
     image: 040317/pose-gallery-backend:main
-    # 使用host网络模式以便访问外部数据库
-    network_mode: host
+    ports:
+      - "8000:8000"
     environment:
       # 外部数据库配置
       - DB_HOST=${EXTERNAL_DB_HOST}
@@ -27,13 +27,12 @@ services:
       - OSS_BUCKET=${OSS_BUCKET}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4-vision-preview}
-      
-      # 绑定到所有接口以便前端访问
-      - HOST=0.0.0.0
-      - PORT=8000
     volumes:
       - ./logs:/app/logs
     restart: unless-stopped
+    extra_hosts:
+      # 如果外部数据库在同一服务器上，添加主机映射
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -47,14 +46,9 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # 使用宿主机地址访问后端
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      # 使用服务器外部IP或域名
+      - NEXT_PUBLIC_API_URL=http://${SERVER_HOST:-localhost}:8000
     depends_on:
       backend:
         condition: service_healthy
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
