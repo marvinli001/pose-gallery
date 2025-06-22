@@ -1,17 +1,40 @@
 export async function GET(request) {
   const { searchParams } = new URL(request.url)
   const query = searchParams.get('q')
-
-  // 模拟搜索建议数据
-  const suggestions = [
-    '室内人像', '咖啡馆拍照', '街头摄影', '情侣写真',
-    '商务头像', '自然光人像', '创意构图', '半身照',
-    '全身照', '侧面角度', '逆光摄影', '优雅姿势'
-  ]
-
-  const filtered = suggestions.filter(item => 
-    item.toLowerCase().includes(query?.toLowerCase() || '')
-  ).slice(0, 6)
-
-  return Response.json(filtered)
+  
+  if (!query || query.length < 2) {
+    return Response.json([])
+  }
+  
+  try {
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000'
+    const response = await fetch(`${backendUrl}/api/v1/search/suggestions?q=${encodeURIComponent(query)}`, {
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      return Response.json(data)
+    } else {
+      throw new Error(`Backend API error: ${response.status}`)
+    }
+  } catch (error) {
+    console.log('Search suggestions API not available, using mock data:', error)
+    
+    // 返回模拟搜索建议
+    const mockSuggestions = [
+      '咖啡馆拍照',
+      '户外人像',
+      '情侣合照',
+      '商务形象照',
+      '街头摄影',
+      '室内写真'
+    ].filter(suggestion => 
+      suggestion.toLowerCase().includes(query.toLowerCase())
+    )
+    
+    return Response.json(mockSuggestions.slice(0, 5))
+  }
 }

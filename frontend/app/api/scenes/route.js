@@ -1,27 +1,36 @@
-export async function GET() {
+export async function GET(request) {
   try {
-    // 尝试从后端获取真实数据
-    const response = await fetch('http://localhost:8000/api/scenes')
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000'
+    const response = await fetch(`${backendUrl}/api/v1/scenes`, {
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    })
     
     if (response.ok) {
       const data = await response.json()
       return Response.json(data)
+    } else {
+      throw new Error(`Backend API error: ${response.status}`)
     }
-  } catch {} {
-    console.log('Backend not available, using mock data')
-  }
-
-  // 返回模拟数据
-  return Response.json({
-    scenes: [
-      { id: 'indoor', name: '室内拍摄', icon: '🏠', count: 120 },
-      { id: 'street', name: '街头摄影', icon: '🏙️', count: 89 },
-      { id: 'cafe', name: '咖啡馆', icon: '☕', count: 67 },
-      { id: 'outdoor', name: '户外自然', icon: '🌿', count: 95 },
-      { id: 'portrait', name: '人像写真', icon: '👤', count: 156 },
-      { id: 'couple', name: '情侣拍照', icon: '💕', count: 78 },
-      { id: 'business', name: '商务形象', icon: '💼', count: 43 },
-      { id: 'creative', name: '创意摄影', icon: '🎨', count: 92 }
+  } catch (error) {
+    console.log('Scenes API not available, using mock data:', error)
+    
+    // 返回模拟场景数据
+    const mockScenes = [
+      { id: 'indoor', name: '室内拍摄', icon: '🏠', pose_count: 15 },
+      { id: 'outdoor', name: '户外拍摄', icon: '🌿', pose_count: 23 },
+      { id: 'portrait', name: '人像写真', icon: '👤', pose_count: 18 },
+      { id: 'couple', name: '情侣拍照', icon: '💕', pose_count: 12 },
+      { id: 'street', name: '街头摄影', icon: '🏙️', pose_count: 8 },
+      { id: 'cafe', name: '咖啡馆', icon: '☕', pose_count: 6 },
+      { id: 'business', name: '商务形象', icon: '💼', pose_count: 9 },
+      { id: 'creative', name: '创意摄影', icon: '🎨', pose_count: 14 }
     ]
-  })
+    
+    return Response.json({
+      scenes: mockScenes,
+      total: mockScenes.length
+    })
+  }
 }

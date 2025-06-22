@@ -5,7 +5,7 @@ services:
   backend:
     image: 040317/pose-gallery-backend:main
     # 使用host网络模式以便访问外部数据库
-    network_mode: host
+    network_mode: "host"
     environment:
       # 外部数据库配置
       - DB_HOST=${EXTERNAL_DB_HOST}
@@ -49,6 +49,7 @@ services:
     environment:
       # 使用宿主机地址访问后端
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - BACKEND_URL=http://localhost:8000
     depends_on:
       backend:
         condition: service_healthy

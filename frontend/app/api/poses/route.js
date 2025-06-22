@@ -25,10 +25,15 @@ export async function GET(request) {
     
     // 请求后端API，增加超时控制
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 5000) // 5秒超时
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10秒超时
     
-    const response = await fetch(`http://localhost:8000/api/v1/poses?${params}`, {
-      signal: controller.signal
+    // 修改这里：在容器环境中使用正确的后端地址
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000'
+    const response = await fetch(`${backendUrl}/api/v1/poses?${params}`, {
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+      }
     })
     
     clearTimeout(timeoutId)
@@ -39,7 +44,7 @@ export async function GET(request) {
     } else {
       throw new Error(`Backend API error: ${response.status}`)
     }
-  } catch {} {
+  } catch (error) {  // 修复：添加了 error 参数
     console.log('Backend not available, using mock data:', error)
     
     // 返回模拟数据，确保结构正确
