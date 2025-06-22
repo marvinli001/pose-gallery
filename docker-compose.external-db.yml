@@ -44,6 +44,7 @@ services:
   # 前端服务
   frontend:
     image: 040317/pose-gallery-frontend:main
+    network_mode: "host"
     ports:
       - "3000:3000"
     environment:
