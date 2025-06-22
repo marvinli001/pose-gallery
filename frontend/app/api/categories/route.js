@@ -1,17 +1,25 @@
 export async function GET() {
   try {
-    const response = await fetch('http://localhost:8000/api/categories')
+    // 固定使用内网地址
+    const backendUrl = 'http://127.0.0.1:8000'
     
-    if (!response.ok) {
-      return Response.json(
-        { error: 'Backend API not available' }, 
-        { status: 503 }
-      )
+    console.log('代理请求到后端分类 API')
+    
+    const response = await fetch(`${backendUrl}/api/v1/categories`, {
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      return Response.json(data)
+    } else {
+      throw new Error(`Backend API error: ${response.status}`)
     }
+  } catch (error) {
+    console.log('分类 API 不可用，使用模拟数据:', error.message)
     
-    const data = await response.json()
-    return Response.json(data)
-  } catch {} {
     // 返回默认分类
     return Response.json([
       { id: 1, name: '人像摄影' },

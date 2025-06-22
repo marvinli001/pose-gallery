@@ -13,6 +13,8 @@ services:
       - DB_USER=${EXTERNAL_DB_USER}
       - DB_PASS=${EXTERNAL_DB_PASS}
       - DB_NAME=${EXTERNAL_DB_NAME}
+      - CORS_ORIGINS=*
+      - ALLOWED_HOSTS=*
       
       # 外部Redis配置
       - REDIS_HOST=${EXTERNAL_REDIS_HOST}

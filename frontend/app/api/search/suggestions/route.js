@@ -7,9 +7,11 @@ export async function GET(request) {
   }
   
   try {
-    const backendUrl = process.env.BACKEND_URL || 
-                      process.env.NEXT_PUBLIC_API_URL || 
-                      'http://127.0.0.1:8000'
+    // 固定使用内网地址
+    const backendUrl = 'http://127.0.0.1:8000'
+    
+    console.log('代理请求到后端搜索建议 API:', query)
+    
     const response = await fetch(`${backendUrl}/api/v1/search/suggestions?q=${encodeURIComponent(query)}`, {
       headers: {
         'Content-Type': 'application/json',
@@ -23,7 +25,7 @@ export async function GET(request) {
       throw new Error(`Backend API error: ${response.status}`)
     }
   } catch (error) {
-    console.log('Search suggestions API not available, using mock data:', error)
+    console.log('搜索建议 API 不可用，使用模拟数据:', error.message)
     
     // 返回模拟搜索建议
     const mockSuggestions = [
@@ -32,7 +34,9 @@ export async function GET(request) {
       '情侣合照',
       '商务形象照',
       '街头摄影',
-      '室内写真'
+      '室内写真',
+      '自然光拍摄',
+      '创意构图'
     ].filter(suggestion => 
       suggestion.toLowerCase().includes(query.toLowerCase())
     )

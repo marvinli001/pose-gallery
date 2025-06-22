@@ -335,3 +335,12 @@ async def get_suggestions(
         print(f"搜索建议查询错误: {e}")
         # 返回固定建议
         return ['室内人像', '咖啡馆拍照', '街头摄影', '情侣写真']
+    
+# CORS配置 - 放宽限制，因为通过前端代理
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 允许所有源，因为通过前端代理
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
