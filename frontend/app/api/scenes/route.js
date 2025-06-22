@@ -1,4 +1,4 @@
-export async function GET(request) {
+export async function GET() {
   try {
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000'
     const response = await fetch(`${backendUrl}/api/v1/scenes`, {
