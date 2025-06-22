@@ -27,7 +27,7 @@ export async function proxyToBackend(request, endpoint, options = {}) {
     if (request.method !== 'GET') {
       try {
         fetchOptions.body = await request.text()
-      } catch (_e) {
+      } catch {
         // 忽略读取body的错误
       }
     }
