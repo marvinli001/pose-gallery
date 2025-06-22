@@ -27,8 +27,11 @@ export async function GET(request) {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 10000) // 10秒超时
     
-    // 修改这里：在容器环境中使用正确的后端地址
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000'
+    // 修改这里：在host网络环境中使用正确的后端地址
+    const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8000'
+    
+    console.log('尝试连接后端:', `${backendUrl}/api/v1/poses?${params}`) // 添加调试日志
+    
     const response = await fetch(`${backendUrl}/api/v1/poses?${params}`, {
       signal: controller.signal,
       headers: {
@@ -40,11 +43,12 @@ export async function GET(request) {
     
     if (response.ok) {
       const data = await response.json()
+      console.log('后端数据获取成功:', data) // 添加调试日志
       return Response.json(data)
     } else {
       throw new Error(`Backend API error: ${response.status}`)
     }
-  } catch (error) {  // 确保这里有 error 参数
+  } catch (error) {
     console.log('Backend not available, using mock data:', error)
     
     // 返回模拟数据，确保结构正确
