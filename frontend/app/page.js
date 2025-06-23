@@ -121,13 +121,29 @@ function PosesPageContent() {
     setIsAISearch(false); // 重置AI搜索标记
   };
 
-  // 修复：处理搜索提交 - 正确的参数类型
-  const handleSearchSubmit = useCallback((query) => {
-    console.log('处理搜索提交:', query);
-    setSearchQuery(query);
-    setFilters(prev => ({ ...prev, search: query }));
-    setIsAISearch(false); // 重置AI搜索标记
-  }, []);
+// 修复：处理搜索提交 - 正确的参数类型
+const handleSearchSubmit = useCallback((query) => {
+  console.log('处理搜索提交:', query);
+  setSearchQuery(query);
+  setFilters(prev => ({ ...prev, search: query }));
+  setIsAISearch(false); // 重置AI搜索标记
+}, []);
+  
+  // 新增：重置搜索状态的回调
+const handleResetSearch = useCallback(() => {
+  console.log('重置搜索状态');
+  setSearchQuery('');
+  setFilters(prev => ({ 
+    ...prev, 
+    search: '' 
+  }));
+  setIsAISearch(false);
+  setPoses([]);
+  setPage(1);
+  setHasMore(true);
+  // 重新加载默认姿势
+  fetchPoses(true);
+}, [fetchPoses]);
 
   return (
     <div className="min-h-screen">
@@ -165,6 +181,7 @@ function PosesPageContent() {
           <EnhancedSearchBar
             onSearch={handleSearchSubmit}
             onAISearchResult={handleAISearchResult}  // ✅ 已正确传递
+            onResetSearch={handleResetSearch}  // ✅ 新增重置回调
             initialValue={searchQuery}
             showSearchInfo={true}
           />
