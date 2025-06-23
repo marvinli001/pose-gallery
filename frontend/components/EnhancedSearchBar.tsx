@@ -155,7 +155,7 @@ const EnhancedSearchBar: React.FC<Props> = ({
     setShowSuggestions(false);
     
     try {
-        const response = await fetch('/api/v1/search/ai-database', {
+        const response = await fetch('/api/search/ai-database', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
