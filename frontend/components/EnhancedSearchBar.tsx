@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useDebounce } from '@/hooks/useDebounce';
 
 interface SearchSuggestion {
   text: string;
@@ -57,33 +56,36 @@ const EnhancedSearchBar: React.FC<Props> = ({
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isAiDatabaseLoading, setIsAiDatabaseLoading] = useState(false);
   
-  const debouncedQuery = useDebounce(query, 300);
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
-  // 获取智能搜索建议
+  // 简化建议功能 - 使用本地建议而不是API调用
+  const getLocalSuggestions = (prefix: string): SearchSuggestion[] => {
+    const commonSuggestions = [
+      { text: '俏皮可爱', type: 'tag' as const, weight: 0.9 },
+      { text: '咖啡厅拍照', type: 'tag' as const, weight: 0.8 },
+      { text: '坐姿写真', type: 'tag' as const, weight: 0.7 },
+      { text: '户外人像', type: 'tag' as const, weight: 0.8 },
+      { text: '情侣拍照', type: 'tag' as const, weight: 0.9 },
+      { text: '街头摄影', type: 'tag' as const, weight: 0.7 },
+      { text: '室内写真', type: 'tag' as const, weight: 0.8 },
+      { text: '商务形象', type: 'tag' as const, weight: 0.6 },
+    ];
+
+    return commonSuggestions
+      .filter(s => s.text.includes(prefix))
+      .slice(0, 5);
+  };
+
+  // 当输入变化时显示建议
   useEffect(() => {
-    if (debouncedQuery && debouncedQuery.length > 0) {
-      fetchSuggestions(debouncedQuery);
+    if (query && query.length > 0) {
+      const localSuggestions = getLocalSuggestions(query);
+      setSuggestions(localSuggestions);
     } else {
       setSuggestions([]);
     }
-  }, [debouncedQuery]);
-
-  const fetchSuggestions = async (prefix: string) => {
-    try {
-      const response = await fetch(
-        `/api/search/v2/suggestions?prefix=${encodeURIComponent(prefix)}&limit=8`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setSuggestions(data);
-      }
-    } catch (error) {
-      console.error('获取搜索建议失败:', error);
-      setSuggestions([]);
-    }
-  };
+  }, [query]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,16 +96,6 @@ const EnhancedSearchBar: React.FC<Props> = ({
     setSearchInfo(null); // 清除之前的搜索信息
     
     try {
-      // 调用增强搜索 API
-      const response = await fetch(
-        `/api/search/v2/search?q=${encodeURIComponent(query)}&enable_fuzzy=true`
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        setSearchInfo(data.search_info);
-      }
-      
       // 执行普通搜索
       onSearch(query);
     } catch (error) {
@@ -206,7 +198,8 @@ const EnhancedSearchBar: React.FC<Props> = ({
           onSearch(query);
         }
       } else {
-        console.error('AI数据库搜索API响应错误:', response.status, await response.text());
+        const errorText = await response.text();
+        console.error('AI数据库搜索API响应错误:', response.status, errorText);
         // 回退到普通搜索
         onSearch(query);
       }

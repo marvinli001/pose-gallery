@@ -14,8 +14,9 @@ function PosesPageContent() {
   const [hasMore, setHasMore] = useState(true)
   const [page, setPage] = useState(1)
   const [viewMode, setViewMode] = useState('grid')
-const [searchQuery] = useState(searchParams.get('search') || '')
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '')
   const [selectedPose, setSelectedPose] = useState(null)
+  const [isAISearch, setIsAISearch] = useState(false) // 标记是否为AI搜索
   const [filters, setFilters] = useState({
     category: searchParams.get('category') || '',
     search: searchParams.get('search') || '',
@@ -24,11 +25,14 @@ const [searchQuery] = useState(searchParams.get('search') || '')
   })
 
   // 新增：处理AI搜索结果的回调
-  const handleAISearchResult = (aiPoses) => {
-    setPoses(aiPoses)
-    setPage(1)
-    setHasMore(false) // AI搜索结果通常不需要分页
-  }
+  const handleAISearchResult = useCallback((aiPoses) => {
+    console.log('接收到AI搜索结果:', aiPoses);
+    setPoses(aiPoses || []);
+    setPage(1);
+    setHasMore(false); // AI搜索结果不需要分页
+    setIsAISearch(true); // 标记为AI搜索
+    setLoading(false);
+  }, []);
 
   // 筛选选项
   const filterOptions = {
@@ -47,71 +51,83 @@ const [searchQuery] = useState(searchParams.get('search') || '')
 
   // 将 fetchPoses 包装为 useCallback - 必须在 useEffect 之前定义
   const fetchPoses = useCallback(async (reset = false) => {
-    setLoading(reset)
+    if (isAISearch && !reset) return; // 如果是AI搜索结果，不进行普通搜索
+    
+    setLoading(reset);
     try {
       const queryParams = new URLSearchParams({
         page: reset ? 1 : page,
         per_page: 20,
         ...filters
-      })
+      });
 
-      const response = await fetch(`/api/poses?${queryParams}`)
+      console.log('发起普通搜索请求:', queryParams.toString());
+      
+      const response = await fetch(`/api/poses?${queryParams}`);
       if (response.ok) {
-        const data = await response.json()
+        const data = await response.json();
+        console.log('普通搜索结果:', data);
         
         if (reset) {
-          setPoses(data.poses || [])
-          setPage(2)
+          setPoses(data.poses || []);
+          setPage(2);
+          setIsAISearch(false); // 重置AI搜索标记
         } else {
-          setPoses(prev => [...prev, ...(data.poses || [])])
-          setPage(prev => prev + 1)
+          setPoses(prev => [...prev, ...(data.poses || [])]);
+          setPage(prev => prev + 1);
         }
         
-        setHasMore(data.hasMore !== false && (data.poses || []).length === 20)
+        setHasMore(data.hasMore !== false && (data.poses || []).length === 20);
       }
     } catch (error) {
-      console.error('Fetch poses error:', error)
+      console.error('Fetch poses error:', error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [page, filters])
+  }, [page, filters, isAISearch]);
 
   // loadMore 也需要更新依赖
   const loadMore = useCallback(() => {
-    if (!loading && hasMore) {
-      fetchPoses(false)
+    if (!loading && hasMore && !isAISearch) { // AI搜索结果不支持加载更多
+      fetchPoses(false);
     }
-  }, [loading, hasMore, fetchPoses])
+  }, [loading, hasMore, fetchPoses, isAISearch]);
 
-  // 现在可以安全地在 useEffect 中使用 fetchPoses
+  // 监听filters变化，触发搜索
   useEffect(() => {
-    fetchPoses(true)
-  }, [fetchPoses]) // 修复：将依赖从 [filters] 改为 [fetchPoses]
+    console.log('Filters changed:', filters);
+    fetchPoses(true);
+  }, [filters]); // 只依赖filters
 
   // 无限滚动
   useEffect(() => {
     const handleScroll = () => {
       if (window.innerHeight + document.documentElement.scrollTop 
           >= document.documentElement.offsetHeight - 1000) {
-        loadMore()
+        loadMore();
       }
-    }
+    };
 
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [loadMore])
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [loadMore]);
 
   const handleFilterChange = (filterType, value) => {
+    console.log('Filter change:', filterType, value);
     setFilters(prev => ({
       ...prev,
       [filterType]: prev[filterType] === value ? '' : value
-    }))
-  }
+    }));
+    setIsAISearch(false); // 重置AI搜索标记
+  };
 
-  const handleSearchSubmit = (e) => {
-    e.preventDefault()
-    setFilters(prev => ({ ...prev, search: searchQuery }))
-  }
+  // 修复：处理搜索提交 - 正确的参数类型
+  const handleSearchSubmit = useCallback((query) => {
+    console.log('处理搜索提交:', query);
+    setSearchQuery(query);
+    setFilters(prev => ({ ...prev, search: query }));
+    setIsAISearch(false); // 重置AI搜索标记
+  }, []);
 
   return (
     <div className="min-h-screen">
@@ -176,55 +192,73 @@ const [searchQuery] = useState(searchParams.get('search') || '')
             </div>
           </section>
 
-          {/* 其他筛选 */}
-          <div className="advanced-filters">
-            <div className="filter-row">
-              <div className="filter-group">
-                <span className="filter-label">角度：</span>
-                <div className="filter-options">
-                  {filterOptions.angles.map(angle => (
-                    <button 
-                      key={angle}
-                      className={`filter-tag ${filters.angle === angle ? 'active' : ''}`}
-                      onClick={() => handleFilterChange('angle', angle)}
-                    >
-                      {angle}
-                    </button>
-                  ))}
+          {/* 其他筛选 - AI搜索时隐藏 */}
+          {!isAISearch && (
+            <div className="advanced-filters">
+              <div className="filter-row">
+                <div className="filter-group">
+                  <span className="filter-label">角度：</span>
+                  <div className="filter-options">
+                    {filterOptions.angles.map(angle => (
+                      <button 
+                        key={angle}
+                        className={`filter-tag ${filters.angle === angle ? 'active' : ''}`}
+                        onClick={() => handleFilterChange('angle', angle)}
+                      >
+                        {angle}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              <div className="filter-group">
-                <span className="filter-label">排序：</span>
-                <div className="filter-options">
-                  <button 
-                    className={`filter-tag ${filters.sort === 'latest' ? 'active' : ''}`}
-                    onClick={() => handleFilterChange('sort', 'latest')}
-                  >
-                    最新
-                  </button>
-                  <button 
-                    className={`filter-tag ${filters.sort === 'popular' ? 'active' : ''}`}
-                    onClick={() => handleFilterChange('sort', 'popular')}
-                  >
-                    热门
-                  </button>
-                  <button 
-                    className={`filter-tag ${filters.sort === 'view_count' ? 'active' : ''}`}
-                    onClick={() => handleFilterChange('sort', 'view_count')}
-                  >
-                    浏览量
-                  </button>
+                <div className="filter-group">
+                  <span className="filter-label">排序：</span>
+                  <div className="filter-options">
+                    <button 
+                      className={`filter-tag ${filters.sort === 'latest' ? 'active' : ''}`}
+                      onClick={() => handleFilterChange('sort', 'latest')}
+                    >
+                      最新
+                    </button>
+                    <button 
+                      className={`filter-tag ${filters.sort === 'popular' ? 'active' : ''}`}
+                      onClick={() => handleFilterChange('sort', 'popular')}
+                    >
+                      热门
+                    </button>
+                    <button 
+                      className={`filter-tag ${filters.sort === 'view_count' ? 'active' : ''}`}
+                      onClick={() => handleFilterChange('sort', 'view_count')}
+                    >
+                      浏览量
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </section>
 
       {/* 姿势列表 */}
       <main className="main-content">
         <div className="container">
+          {/* AI搜索结果提示 */}
+          {isAISearch && poses.length > 0 && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800">
+              🤖 AI智能搜索结果 - 共找到 {poses.length} 个相关姿势
+              <button 
+                className="ml-2 text-blue-600 underline"
+                onClick={() => {
+                  setIsAISearch(false);
+                  fetchPoses(true);
+                }}
+              >
+                返回普通搜索
+              </button>
+            </div>
+          )}
+
           {loading && poses.length === 0 ? (
             <div className="loading-state">
               <div className="loading-spinner"></div>
@@ -242,14 +276,14 @@ const [searchQuery] = useState(searchParams.get('search') || '')
             </div>
           )}
 
-          {loading && poses.length > 0 && (
+          {loading && poses.length > 0 && !isAISearch && (
             <div className="loading-more">
               <div className="loading-spinner"></div>
               <span>加载更多...</span>
             </div>
           )}
 
-          {!hasMore && poses.length > 0 && (
+          {!hasMore && poses.length > 0 && !isAISearch && (
             <div className="end-message">
               已加载全部内容
             </div>
@@ -273,7 +307,7 @@ const [searchQuery] = useState(searchParams.get('search') || '')
         />
       )}
     </div>
-  )
+  );
 }
 
 // Loading 组件
@@ -283,7 +317,7 @@ function LoadingFallback() {
       <div className="loading-spinner"></div>
       <span className="ml-2">加载中...</span>
     </div>
-  )
+  );
 }
 
 // 主导出组件，使用 Suspense 包装
@@ -292,7 +326,7 @@ export default function PosesPage() {
     <Suspense fallback={<LoadingFallback />}>
       <PosesPageContent />
     </Suspense>
-  )
+  );
 }
 
 // 姿势卡片组件
@@ -354,34 +388,34 @@ function PoseCard({ pose, onClick }) {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 // 修改 PoseModal 组件中的图片部分
 function PoseModal({ pose, onClose }) {
-  const [imageError, setImageError] = useState(false)
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     const handleEsc = (e) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose])
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [onClose]);
 
   useEffect(() => {
-    document.body.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden';
     return () => {
-      document.body.style.overflow = 'unset'
-    }
-  }, [])
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
 
   const handleImageError = () => {
-    console.error('Modal image load error for pose:', pose.id, pose.oss_url)
-    setImageError(true)
-  }
+    console.error('Modal image load error for pose:', pose.id, pose.oss_url);
+    setImageError(true);
+  };
 
-  const placeholderImage = "data:image/svg+xml,%3Csvg width='800' height='600' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23f7fafc'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='central' text-anchor='middle' fill='%23a0aec0'%3E📸%3C/text%3E%3C/svg%3E"
+  const placeholderImage = "data:image/svg+xml,%3Csvg width='800' height='600' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23f7fafc'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='central' text-anchor='middle' fill='%23a0aec0'%3E📸%3C/text%3E%3C/svg%3E";
 
   return (
     <div className="pose-modal-overlay" onClick={onClose}>
@@ -395,8 +429,8 @@ function PoseModal({ pose, onClose }) {
             <Image 
               src={imageError ? placeholderImage : (pose.oss_url || placeholderImage)}
               alt={pose.title || '摄影姿势'}
-              width={800}  // 从 600 增加到 800
-              height={600} // 从 400 增加到 600
+              width={800}
+              height={600}
               style={{ objectFit: 'contain', width: '100%', height: 'auto' }}
               onError={handleImageError}
               unoptimized={true}
@@ -449,5 +483,5 @@ function PoseModal({ pose, onClose }) {
         </div>
       </div>
     </div>
-  )
+  );
 }
