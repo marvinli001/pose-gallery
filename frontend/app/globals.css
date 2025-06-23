@@ -795,3 +795,58 @@ body {
     min-width: auto;
   }
 }
+/* AI搜索按钮样式 */
+.ai-search-button {
+  position: absolute;
+  right: 3rem;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0.5rem;
+  color: #6b7280;
+  transition: color 0.2s;
+}
+
+.ai-search-button:hover {
+  color: #8b5cf6;
+}
+
+.ai-search-button:disabled {
+  opacity: 0.5;
+}
+
+.ai-database-search-button {
+  position: absolute;
+  right: 6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0.5rem;
+  color: #6b7280;
+  transition: color 0.2s;
+}
+
+.ai-database-search-button:hover {
+  color: #10b981;
+}
+
+/* 搜索信息展示样式 */
+.search-info {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background-color: #f9fafb;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.search-info .ai-explanation {
+  color: #059669;
+  margin-bottom: 0.5rem;
+}
+
+.search-info .search-intent {
+  color: #7c3aed;
+  margin-bottom: 0.5rem;
+}
+
+.search-info .query-time {
+  color: #6b7280;
+}
