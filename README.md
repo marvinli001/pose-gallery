@@ -1,75 +1,71 @@
-# Pose Gallery
+# Pose Gallery ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-Pose Gallery 是一个包含摄影姿势示例的图库系统，后端使用 **FastAPI** 构建 API ，前端使用 **Next.js** 实现界面。项目支持从阿里云 OSS 批量导入图片并调用 OpenAI 接口进行自动化分析，可按场景、角度等条件进行搜索，并通过 Docker 一键部署。
+> 📸 **AI 驱动的摄影姿势图库**
+>
+> 结合 FastAPI 与 Next.js，自动从 OSS 导入图片并调用 OpenAI 进行分析，提供智能搜索与一键部署。
 
 ## 目录结构
 
-```
+```text
 backend/   # FastAPI 应用和脚本
 frontend/  # Next.js 前端应用
 migrations/ # MySQL 初始化脚本
 scripts/    # 自动化处理与管理工具
 ```
 
-## 功能概览
+## 亮点功能
 
-- **图片处理**：`backend/scripts/auto_process_images.py` 与 `auto_process_images_enhanced.py` 可扫描 OSS 中的图片，调用 OpenAI 分析标题、描述、场景分类、角度、标签等信息并写入数据库。
-- **搜索服务**：`SearchService` 支持关键词、同义词扩展、标签匹配、分类和角度筛选，并记录搜索历史。
-- **管理脚本**：`scripts/manage.py` 提供统计信息查看、失败记录重试、数据导出等功能；`health_check.py` 用于检查数据库、Redis、OSS、OpenAI 等依赖的状态。
-- **前端界面**：Next.js 构建的网页包含姿势列表、分类浏览、搜索及图片详情弹窗等组件，默认会在后端不可用时回退到示例数据。
+- **自动化图片处理**：`backend/scripts/auto_process_images_enhanced.py` 能批量从阿里云 OSS 获取图片并调用 OpenAI 识别场景、角度、道具及标签。
+- **AI 搜索优化**：`ai_search_service` 与 `ai_database_search_service` 让用户只需输入自然语言即可获得相关性排序的结果，支持模糊匹配、同义词扩展和智能建议。
+- **搜索统计与分析**：`SearchService` 记录查询历史，`manage.py` 可查看热门搜索词与响应时间等指标。
+- **前端交互**：Next.js 15 实现无限滚动、类别过滤及弹窗查看大图，当后端不可用时自动回退到示例数据。
+- **脚本工具**：`deploy.sh`、`init-db.sh` 等脚本帮助快速部署、初始化和监控服务状态。
 
 ## 环境准备
 
-1. 克隆仓库并安装依赖：
+1. 克隆仓库：
    ```bash
    git clone https://github.com/yourname/pose-gallery.git
    cd pose-gallery
    ```
-2. 复制并修改环境变量：
+2. 按需修改环境变量：
    ```bash
    cp backend/.env.example .env
-   # 按需修改数据库、Redis、OSS 以及 OpenAI 配置
+   # 配置数据库、Redis、OSS 以及 OpenAI
    ```
-3. （可选）手动安装依赖运行：
-   - 后端：在 `backend/` 创建虚拟环境并安装 `requirements.txt`，使用 `uvicorn app.main:app --reload` 启动。
-   - 前端：进入 `frontend/` 执行 `npm install` 与 `npm run dev`。
+3. 手动运行（可选）：
+   - 后端：`cd backend && python -m venv venv && source venv/bin/activate && pip install -r requirements.txt && uvicorn app.main:app --reload`
+   - 前端：`cd frontend && npm install && npm run dev`
 
 ## Docker 部署
 
-项目提供两套 `docker-compose` 配置：
-
-- `docker-compose.yml`：包含 MySQL 与 Redis 容器，适合本地快速启动。
-- `docker-compose.external-db.yml`：用于连接外部数据库，仅启动前后端容器。
-
-部署流程：
+项目自带 `docker-compose.yml`（自带数据库） 与 `docker-compose.external-db.yml`（使用外部数据库）。
 
 ```bash
-# 根据 .env 中的 DEPLOYMENT_MODE 选择使用本地数据库或外部数据库
+# 根据 .env 中的 DEPLOYMENT_MODE 选择模式
 ./deploy.sh        # 构建并启动容器
-./init-db.sh       # 初始化 MySQL 表结构
+./init-db.sh       # 初始化数据库
 ```
 
-服务启动后，访问：
+启动后访问：
 
-- 前端：http://localhost:3000
-- 后端接口：http://localhost:8000
-- API 文档：http://localhost:8000/docs
+- 🌐 前端：http://localhost:3000
+- 🛠️ 后端接口：http://localhost:8000
+- 📚 API 文档：http://localhost:8000/docs
 
 ## 数据库初始化
 
-`migrations/init_database.sql` 包含完整的表结构和示例同义词数据。脚本 `backend/scripts/init_db.py` 会根据 `.env` 中的配置创建数据库并导入该 SQL 文件。
+`migrations/init_database.sql` 含完整表结构及示例同义词。运行 `backend/scripts/init_db.py` 会根据 `.env` 自动创建数据库并导入数据。
 
 ## 常用脚本
 
-- `python backend/scripts/check_config.py`：检查环境变量是否配置完整。
-- `python backend/scripts/check_connections.py`：测试 MySQL 和 Redis 连接状态。
-- `python backend/scripts/auto_process_images.py --scan-oss`：扫描 OSS 并处理新图片。
-- `python backend/scripts/manage.py stats`：查看当前统计信息。
-- `python backend/scripts/health_check.py --verbose`：输出依赖服务的健康状态。
+- `python backend/scripts/check_config.py`：检查配置是否齐全。
+- `python backend/scripts/check_connections.py`：测试 MySQL 与 Redis 连接。
+- `python backend/scripts/auto_process_images_enhanced.py --scan-oss`：扫描 OSS 并处理新图片。
+- `python backend/scripts/manage.py stats`：查看统计信息及热门搜索词。
+- `python backend/scripts/health_check.py --verbose`：输出依赖服务状态。
 
-## 贡献与开发
+## 贡献 & 开发
 
-1. 前端与后端均遵循常规的 eslint/flake8 代码规范。
-2. 提交前请运行脚本或测试以确保功能正常。
-3. 欢迎提交 Issue 或 Pull Request 进行改进。
-
+1. 前后端遵循 eslint/flake8 规范，提交前请确保代码通过检查。
+2. 欢迎通过 Issue 或 Pull Request 反馈问题与贡献改进。

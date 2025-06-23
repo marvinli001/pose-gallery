@@ -250,58 +250,58 @@ const EnhancedSearchBar: React.FC<Props> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  return (
-    <div className="relative w-full max-w-2xl mx-auto">
-      <form onSubmit={handleSubmit}>
-        <div className="relative">
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setShowSuggestions(true);
-              setSelectedIndex(-1);
-            }}
-            onFocus={() => setShowSuggestions(true)}
-            onKeyDown={handleKeyDown}
-            placeholder="智能搜索：「俏皮可爱」「咖啡厅拍照」「坐姿写真」..."
-            className="w-full px-4 py-3 pr-20 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
-            disabled={isLoading || isAiDatabaseLoading}
-          />
-          
-          {/* AI数据库搜索按钮 */}
-          <button
-            type="button"
-            onClick={handleAiDatabaseSearch}
-            disabled={isLoading || isAiDatabaseLoading}
-            className="absolute right-12 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-purple-600 disabled:opacity-50 transition-colors"
-            title="AI智能搜索"
-          >
-            {isAiDatabaseLoading ? (
-              <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
-            ) : (
-              <span className="text-lg">✨</span>
-            )}
-          </button>
+return (
+  <div className="relative w-full max-w-2xl mx-auto">
+    <form onSubmit={handleSubmit}>
+      <div className="relative">
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setShowSuggestions(true);
+            setSelectedIndex(-1);
+          }}
+          onFocus={() => setShowSuggestions(true)}
+          onKeyDown={handleKeyDown}
+          placeholder="智能搜索：「俏皮可爱」「咖啡厅拍照」「坐姿写真」..."
+          className="w-full px-4 py-3 pr-20 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+          disabled={isLoading || isAiDatabaseLoading}
+        />
+        
+        {/* AI数据库搜索按钮 */}
+        <button
+          type="button"
+          onClick={handleAiDatabaseSearch}
+          disabled={isLoading || isAiDatabaseLoading}
+          className="absolute right-12 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-purple-600 disabled:opacity-50 transition-colors flex items-center justify-center w-8 h-8"
+          title="AI智能搜索"
+        >
+          {isAiDatabaseLoading ? (
+            <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+          ) : (
+            <span className="text-lg">✨</span>
+          )}
+        </button>
 
-          {/* 普通搜索按钮 */}
-          <button
-            type="submit"
-            disabled={isLoading || isAiDatabaseLoading}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-blue-600 disabled:opacity-50"
-            title="普通搜索"
-          >
-            {isLoading ? (
-              <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            ) : (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            )}
-          </button>
-        </div>
-      </form>
+        {/* 普通搜索按钮 */}
+        <button
+          type="submit"
+          disabled={isLoading || isAiDatabaseLoading}
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-blue-600 disabled:opacity-50 transition-colors flex items-center justify-center w-8 h-8"
+          title="普通搜索"
+        >
+          {isLoading ? (
+            <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          ) : (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          )}
+        </button>
+      </div>
+    </form>
 
       {/* 搜索建议下拉框 */}
       {showSuggestions && suggestions.length > 0 && (

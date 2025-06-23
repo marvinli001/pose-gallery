@@ -167,16 +167,19 @@ body {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  width: auto !important;
-  height: auto !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 4px !important;
+  transition: all 0.2s ease !important;
 }
 
 .search-section button.absolute.right-12:hover,
 .search-section button[title="AI智能搜索"]:hover {
   color: #8b5cf6 !important;
+  background: rgba(139, 92, 246, 0.1) !important;
 }
 
-/* 修复普通搜索按钮 */
+/* 修复普通搜索按钮样式 */
 .search-section button.absolute.right-2,
 .search-section button[type="submit"] {
   position: absolute !important;
@@ -192,19 +195,23 @@ body {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  width: auto !important;
-  height: auto !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 4px !important;
+  transition: all 0.2s ease !important;
 }
 
 .search-section button.absolute.right-2:hover,
 .search-section button[type="submit"]:hover {
   color: #3182ce !important;
+  background: rgba(49, 130, 206, 0.1) !important;
 }
 
 /* 修复按钮禁用状态 */
 .search-section button:disabled {
   opacity: 0.5 !important;
   cursor: not-allowed !important;
+  background: transparent !important;
 }
 
 /* 修复加载动画 */
@@ -220,10 +227,13 @@ body {
   fill: none !important;
 }
 
-/* 修复加载动画圆圈 */
+/* 确保加载动画圆圈样式 */
 .search-section button .w-5.h-5 {
   width: 20px !important;
   height: 20px !important;
+  border-width: 2px !important;
+  border-style: solid !important;
+  border-radius: 50% !important;
 }
 
 /* 搜索建议下拉框样式 */

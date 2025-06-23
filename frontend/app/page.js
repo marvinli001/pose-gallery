@@ -262,14 +262,11 @@ const handleResetSearch = useCallback(() => {
         <div className="container">
           {/* AI搜索结果提示 */}
           {isAISearch && poses.length > 0 && (
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800">
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 flex items-center justify-between">
               🤖 AI智能搜索结果 - 共找到 {poses.length} 个相关姿势
               <button 
-                className="ml-2 text-blue-600 underline"
-                onClick={() => {
-                  setIsAISearch(false);
-                  fetchPoses(true);
-                }}
+                className="ml-2 px-3 py-1 text-blue-600 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+                onClick={handleResetSearch}
               >
                 返回普通搜索
               </button>
