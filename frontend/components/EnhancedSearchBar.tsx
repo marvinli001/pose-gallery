@@ -107,110 +107,123 @@ const EnhancedSearchBar: React.FC<Props> = ({
   };
 
   // AI 搜索功能 - 优化查询但使用普通搜索
-  const handleAiSearch = async () => {
-    if (!query.trim()) return;
+const handleAiSearch = async () => {
+  if (!query.trim()) return;
 
-    setIsAiLoading(true);
-    setShowSuggestions(false);
+  setIsAiLoading(true);
+  setShowSuggestions(false);
+  
+  try {
+    const response = await fetch('/api/search/ai', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query: query.trim() })
+    });
     
-    try {
-      const response = await fetch('/api/search/ai', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query: query.trim() })
+    if (response.ok) {
+      const data = await response.json();
+      console.log('AI搜索响应:', data);
+      
+      // 设置AI搜索信息
+      setSearchInfo({
+        original_query: query,
+        corrected_query: data.optimized_query,
+        expanded_queries: data.expanded_queries || [data.optimized_query || query],
+        suggestions: data.suggestions || [],
+        ai_explanation: data.explanation || 'AI已优化您的搜索查询',
+        query_time: data.query_time_ms
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log('AI搜索响应:', data);
-        
-        // 设置AI搜索信息
-        setSearchInfo({
-          original_query: query,
-          corrected_query: data.optimized_query,
-          expanded_queries: data.expanded_queries || [data.optimized_query || query],
-          suggestions: data.suggestions || [],
-          ai_explanation: data.explanation || 'AI已优化您的搜索查询'
-        });
-        
-        // 使用优化后的查询进行普通搜索
-        const optimizedQuery = data.optimized_query || query;
-        setQuery(optimizedQuery);
-        onSearch(optimizedQuery);
-      } else {
-        console.error('AI搜索API响应错误:', response.status);
-        // 回退到普通搜索
-        onSearch(query);
-      }
-    } catch (error) {
-      console.error('AI搜索失败:', error);
+      // 使用优化后的查询进行普通搜索
+      const optimizedQuery = data.optimized_query || query;
+      console.log('使用优化查询进行搜索:', optimizedQuery);
+      
+      // 更新输入框显示优化后的查询
+      setQuery(optimizedQuery);
+      
+      // 执行搜索
+      onSearch(optimizedQuery);
+    } else {
+      console.error('AI搜索API响应错误:', response.status);
       // 回退到普通搜索
       onSearch(query);
-    } finally {
-      setIsAiLoading(false);
     }
-  };
+  } catch (error) {
+    console.error('AI搜索失败:', error);
+    // 回退到普通搜索
+    onSearch(query);
+  } finally {
+    setIsAiLoading(false);
+  }
+};
 
   // AI数据库搜索功能 - 直接从AI数据库获取结果
-  const handleAiDatabaseSearch = async () => {
-    if (!query.trim()) return;
+const handleAiDatabaseSearch = async () => {
+  if (!query.trim()) return;
 
-    setIsAiDatabaseLoading(true);
-    setShowSuggestions(false);
+  setIsAiDatabaseLoading(true);
+  setShowSuggestions(false);
+  
+  try {
+    console.log('开始AI数据库搜索:', query);
     
-    try {
-      console.log('开始AI数据库搜索:', query);
+    const response = await fetch('/api/search/ai-database', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        query: query.trim(),
+        max_results: 20 
+      })
+    });
       
-      const response = await fetch('/api/search/ai-database', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          query: query.trim(),
-          max_results: 20 
-        })
+    if (response.ok) {
+      const data = await response.json();
+      console.log('AI数据库搜索响应:', data);
+      
+      // 设置AI搜索信息
+      setSearchInfo({
+        original_query: query,
+        ai_explanation: data.ai_explanation || '使用AI分析找到最相关的拍照姿势',
+        search_intent: data.search_intent?.intent_type || '智能匹配',
+        query_time: data.query_time_ms,
+        expanded_queries: [],
+        suggestions: []
       });
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('AI数据库搜索响应:', data);
         
-        // 设置AI搜索信息
-        setSearchInfo({
-          original_query: query,
-          ai_explanation: data.ai_explanation || '使用AI分析找到最相关的拍照姿势',
-          search_intent: data.search_intent?.intent_type || '智能匹配',
-          query_time: data.query_time_ms,
-          expanded_queries: [],
-          suggestions: []
-        });
-        
-        // 调用AI搜索结果回调
-        if (onAISearchResult && data.poses && Array.isArray(data.poses)) {
-          console.log('调用AI搜索结果回调，姿势数量:', data.poses.length);
+      // 检查AI搜索结果
+      if (data.poses && Array.isArray(data.poses) && data.poses.length > 0) {
+        console.log('调用AI搜索结果回调，姿势数量:', data.poses.length);
+        if (onAISearchResult) {
           onAISearchResult(data.poses);
         } else {
-          console.warn('AI搜索结果为空或onAISearchResult未定义');
-          // 如果没有结果或回调未定义，执行普通搜索
+          console.warn('onAISearchResult回调未定义，执行普通搜索');
           onSearch(query);
         }
       } else {
-        const errorText = await response.text();
-        console.error('AI数据库搜索API响应错误:', response.status, errorText);
-        // 回退到普通搜索
-        onSearch(query);
+        console.warn('AI搜索结果为空，执行普通搜索');
+        // 如果AI搜索没有结果，尝试使用优化的查询进行普通搜索
+        const fallbackQuery = data.suggested_query || data.corrected_query || query;
+        setQuery(fallbackQuery);
+        onSearch(fallbackQuery);
       }
-    } catch (error) {
-      console.error('AI数据库搜索失败:', error);
+    } else {
+      const errorText = await response.text();
+      console.error('AI数据库搜索API响应错误:', response.status, errorText);
       // 回退到普通搜索
       onSearch(query);
-    } finally {
-      setIsAiDatabaseLoading(false);
     }
-  };
+  } catch (error) {
+    console.error('AI数据库搜索失败:', error);
+    // 回退到普通搜索
+    onSearch(query);
+  } finally {
+    setIsAiDatabaseLoading(false);
+  }
+};
   
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!showSuggestions || suggestions.length === 0) return;

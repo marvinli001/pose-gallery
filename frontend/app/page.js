@@ -164,7 +164,7 @@ function PosesPageContent() {
           
           <EnhancedSearchBar
             onSearch={handleSearchSubmit}
-            onAISearchResult={handleAISearchResult}
+            onAISearchResult={handleAISearchResult}  // ✅ 已正确传递
             initialValue={searchQuery}
             showSearchInfo={true}
           />

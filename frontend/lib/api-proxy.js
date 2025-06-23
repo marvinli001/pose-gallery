@@ -55,7 +55,9 @@ export async function proxyToBackend(request, endpoint, options = {}) {
  */
 export async function proxyToBackendWithTimeout(request, endpoint, timeout = 10000) {
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeout)
+  // 对于AI搜索，可能需要更长的超时时间
+  const actualTimeout = endpoint.includes('/search/ai') ? 30000 : timeout;
+  const timeoutId = setTimeout(() => controller.abort(), actualTimeout)
   
   try {
     const result = await proxyToBackend(request, endpoint, {
