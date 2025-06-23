@@ -19,16 +19,30 @@ interface SearchInfo {
   query_time?: number;
 }
 
+// 定义AI搜索结果类型
+interface AIPoseResult {
+  id: number;
+  oss_url: string;
+  thumbnail_url?: string;
+  title: string;
+  description: string;
+  scene_category: string;
+  angle: string;
+  view_count: number;
+  created_at: string;
+  ai_relevance_explanation?: string;
+}
+
 interface Props {
   onSearch: (query: string) => void;
-  onAISearchResult?: (poses: any[]) => void;  // 新增AI搜索结果回调
+  onAISearchResult?: (poses: AIPoseResult[]) => void;  // 修复类型定义
   initialValue?: string;
   showSearchInfo?: boolean;
 }
 
 const EnhancedSearchBar: React.FC<Props> = ({ 
   onSearch, 
-  onAISearchResult,  // 新增参数
+  onAISearchResult,
   initialValue = '', 
   showSearchInfo = false 
 }) => {
@@ -94,7 +108,7 @@ const EnhancedSearchBar: React.FC<Props> = ({
     }
   };
 
-  // 新增：AI 搜索功能
+  // AI 搜索功能
   const handleAiSearch = async () => {
     if (!query.trim()) return;
 
@@ -134,7 +148,7 @@ const EnhancedSearchBar: React.FC<Props> = ({
     }
   };
 
-    const handleAiDatabaseSearch = async () => {
+  const handleAiDatabaseSearch = async () => {
     if (!query.trim()) return;
 
     setIsAiLoading(true);
@@ -287,7 +301,7 @@ const EnhancedSearchBar: React.FC<Props> = ({
               <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
             ) : (
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 0v10c0 2.21-3.582 4-8 4s-8-1.79-8-4V7m8-4c4.418 0 8 1.79 8 4s-3.582 4-8 4-8-1.79-8-4" />
               </svg>
             )}
           </button>
