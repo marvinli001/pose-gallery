@@ -78,27 +78,28 @@ body {
   text-align: center;
 }
 
-/* React组件增强搜索容器样式 */
+/* 修复搜索容器样式 */
 .search-section .relative {
-  position: relative;
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
+  position: relative !important;
+  width: 100% !important;
+  max-width: 600px !important;
+  margin: 0 auto !important;
 }
 
 .search-section .max-w-2xl {
-  max-width: 42rem;
+  max-width: 42rem !important;
 }
 
 .search-section .mx-auto {
-  margin-left: auto;
-  margin-right: auto;
+  margin-left: auto !important;
+  margin-right: auto !important;
 }
 
-/* React组件搜索输入框样式 */
-.search-section input[type="text"] {
+/* 修复搜索输入框样式 */
+.search-section input[type="text"],
+.search-section input.w-full {
   width: 100% !important;
-  padding: 12px 130px 12px 16px !important;
+  padding: 12px 140px 12px 16px !important;
   border: none !important;
   border-radius: 8px !important;
   font-size: 1rem !important;
@@ -106,6 +107,7 @@ body {
   background: white !important;
   color: #333 !important;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+  display: block !important;
 }
 
 .search-section input:focus {
@@ -113,42 +115,118 @@ body {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
 }
 
-/* React组件按钮样式覆盖 */
-.search-section button[type="button"] {
-  background: none !important;
-  border: none !important;
-  color: #6b7280 !important;
-  transition: color 0.2s !important;
-  cursor: pointer !important;
-  z-index: 10 !important;
-  padding: 0.5rem !important;
-  font-size: 1.25rem !important;
+/* 修复按钮容器定位 */
+.search-section form {
+  position: relative !important;
+  width: 100% !important;
 }
 
-.search-section button[type="button"]:hover {
+.search-section form > div {
+  position: relative !important;
+  width: 100% !important;
+}
+
+/* 修复AI数据库搜索按钮 */
+.search-section button.absolute.right-24,
+.search-section button[title="AI数据库搜索"] {
+  position: absolute !important;
+  right: 96px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  padding: 8px !important;
+  background: transparent !important;
+  border: none !important;
+  color: #6b7280 !important;
+  cursor: pointer !important;
+  z-index: 10 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+.search-section button.absolute.right-24:hover,
+.search-section button[title="AI数据库搜索"]:hover {
+  color: #10b981 !important;
+}
+
+/* 修复AI搜索按钮 */
+.search-section button.absolute.right-12,
+.search-section button[title="AI智能搜索"] {
+  position: absolute !important;
+  right: 48px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  padding: 8px !important;
+  background: transparent !important;
+  border: none !important;
+  color: #6b7280 !important;
+  cursor: pointer !important;
+  z-index: 10 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+.search-section button.absolute.right-12:hover,
+.search-section button[title="AI智能搜索"]:hover {
   color: #8b5cf6 !important;
 }
 
-.search-section button[type="button"]:disabled {
-  opacity: 0.5 !important;
-}
-
+/* 修复普通搜索按钮 */
+.search-section button.absolute.right-2,
 .search-section button[type="submit"] {
-  background: none !important;
+  position: absolute !important;
+  right: 8px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  padding: 8px !important;
+  background: transparent !important;
   border: none !important;
   color: #6b7280 !important;
-  transition: color 0.2s !important;
   cursor: pointer !important;
   z-index: 10 !important;
-  padding: 0.5rem !important;
-  font-size: 1.25rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  height: auto !important;
 }
 
+.search-section button.absolute.right-2:hover,
 .search-section button[type="submit"]:hover {
   color: #3182ce !important;
 }
 
-/* 搜索建议下拉框样式覆盖 */
+/* 修复按钮禁用状态 */
+.search-section button:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+/* 修复加载动画 */
+.search-section .animate-spin {
+  animation: spin 1s linear infinite !important;
+}
+
+/* 修复SVG图标 */
+.search-section button svg {
+  width: 20px !important;
+  height: 20px !important;
+  stroke: currentColor !important;
+  fill: none !important;
+}
+
+/* 修复加载动画圆圈 */
+.search-section button .w-5.h-5 {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+/* 搜索建议下拉框样式 */
 .search-section .absolute.top-full {
   background: white !important;
   border: 1px solid #e5e7eb !important;
@@ -744,8 +822,19 @@ body {
     font-size: 1rem;
   }
   
-  .search-section input[type="text"] {
-    padding-right: 100px !important;
+  .search-section input[type="text"],
+  .search-section input.w-full {
+    padding-right: 120px !important;
+  }
+  
+  .search-section button.absolute.right-24,
+  .search-section button[title="AI数据库搜索"] {
+    right: 80px !important;
+  }
+  
+  .search-section button.absolute.right-12,
+  .search-section button[title="AI智能搜索"] {
+    right: 44px !important;
   }
   
   .categories-grid {
