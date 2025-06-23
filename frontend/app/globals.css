@@ -795,15 +795,19 @@ body {
     min-width: auto;
   }
 }
-/* AI搜索按钮样式 */
+/* 修复AI按钮定位 - 确保相对于正确的容器定位 */
 .ai-search-button {
   position: absolute;
-  right: 3rem;
+  right: 4rem; /* 调整位置 */
   top: 50%;
   transform: translateY(-50%);
   padding: 0.5rem;
   color: #6b7280;
   transition: color 0.2s;
+  background: none;
+  border: none;
+  cursor: pointer;
+  z-index: 10;
 }
 
 .ai-search-button:hover {
@@ -816,12 +820,16 @@ body {
 
 .ai-database-search-button {
   position: absolute;
-  right: 6rem;
+  right: 7rem; /* 调整位置 */
   top: 50%;
   transform: translateY(-50%);
   padding: 0.5rem;
   color: #6b7280;
   transition: color 0.2s;
+  background: none;
+  border: none;
+  cursor: pointer;
+  z-index: 10;
 }
 
 .ai-database-search-button:hover {
@@ -835,18 +843,32 @@ body {
   background-color: #f9fafb;
   border-radius: 0.5rem;
   font-size: 0.875rem;
+  border: 1px solid #e5e7eb;
 }
 
 .search-info .ai-explanation {
   color: #059669;
   margin-bottom: 0.5rem;
+  font-weight: 500;
 }
 
 .search-info .search-intent {
   color: #7c3aed;
   margin-bottom: 0.5rem;
+  font-weight: 500;
 }
 
 .search-info .query-time {
   color: #6b7280;
+  font-size: 0.75rem;
+}
+
+/* 修复搜索容器样式 */
+.search-section .container {
+  position: relative;
+}
+
+/* 确保搜索输入框有足够的右边距 */
+.search-section input[type="text"] {
+  padding-right: 10rem !important; /* 为两个AI按钮留出空间 */
 }

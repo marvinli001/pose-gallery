@@ -116,8 +116,8 @@ const EnhancedSearchBar: React.FC<Props> = ({
     setShowSuggestions(false);
     
     try {
-      // 调用 AI 搜索 API
-      const response = await fetch('/api/v1/search/ai', {
+      // 修复：调用正确的API路径
+      const response = await fetch('/api/search/ai', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -134,7 +134,8 @@ const EnhancedSearchBar: React.FC<Props> = ({
             original_query: query,
             corrected_query: data.optimized_query,
             expanded_queries: data.expanded_queries || [data.optimized_query],
-            suggestions: data.suggestions || []
+            suggestions: data.suggestions || [],
+            ai_explanation: data.explanation
           });
           onSearch(data.optimized_query);
         }
@@ -155,6 +156,7 @@ const EnhancedSearchBar: React.FC<Props> = ({
     setShowSuggestions(false);
     
     try {
+        // 修复：调用正确的API路径
         const response = await fetch('/api/search/ai-database', {
             method: 'POST',
             headers: {
@@ -173,7 +175,7 @@ const EnhancedSearchBar: React.FC<Props> = ({
             setSearchInfo({
                 original_query: query,
                 ai_explanation: data.ai_explanation,
-                search_intent: data.search_intent,
+                search_intent: data.search_intent?.intent_type,
                 query_time: data.query_time_ms,
                 expanded_queries: [],
                 suggestions: []

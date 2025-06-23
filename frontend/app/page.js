@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
+import EnhancedSearchBar from '@/components/EnhancedSearchBar'
 
 // 将使用 useSearchParams 的逻辑提取到单独组件
 function PosesPageContent() {
@@ -21,6 +22,13 @@ function PosesPageContent() {
     angle: '',
     sort: searchParams.get('sort') || 'latest'
   })
+
+  // 新增：处理AI搜索结果的回调
+  const handleAISearchResult = (aiPoses) => {
+    setPoses(aiPoses)
+    setPage(1)
+    setHasMore(false) // AI搜索结果通常不需要分页
+  }
 
   // 筛选选项
   const filterOptions = {
@@ -132,24 +140,18 @@ function PosesPageContent() {
         </div>
       </header>
 
-      {/* 搜索区域 */}
+      {/* 搜索区域 - 替换为增强版搜索组件 */}
       <section className="search-section">
         <div className="container">
           <h2 className="search-title">发现完美拍照姿势</h2>
           <p className="search-subtitle">让每一次拍摄都充满创意和美感</p>
           
-          <form onSubmit={handleSearchSubmit} className="search-box">
-            <input
-              type="text"
-              placeholder="搜索姿势、场景、风格..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="search-input"
-            />
-            <button type="submit" className="btn search-btn">
-              搜索
-            </button>
-          </form>
+          <EnhancedSearchBar
+            onSearch={handleSearchSubmit}
+            onAISearchResult={handleAISearchResult}
+            initialValue={searchQuery}
+            showSearchInfo={true}
+          />
         </div>
       </section>
 
