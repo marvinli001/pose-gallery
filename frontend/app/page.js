@@ -1,11 +1,10 @@
+'use client'
+
 import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import EnhancedSearchBar from '@/components/EnhancedSearchBar'
-
-'use client'
-
 
 // 将使用 useSearchParams 的逻辑提取到单独组件
 function PosesPageContent() {
@@ -15,6 +14,7 @@ function PosesPageContent() {
   const [hasMore, setHasMore] = useState(true)
   const [page, setPage] = useState(1)
   const [viewMode, setViewMode] = useState('grid')
+const [searchQuery] = useState(searchParams.get('search') || '')
   const [selectedPose, setSelectedPose] = useState(null)
   const [filters, setFilters] = useState({
     category: searchParams.get('category') || '',
@@ -110,7 +110,7 @@ function PosesPageContent() {
 
   const handleSearchSubmit = (e) => {
     e.preventDefault()
-    setFilters(prev => ({ ...prev, search: filters.search }))
+    setFilters(prev => ({ ...prev, search: searchQuery }))
   }
 
   return (
@@ -149,7 +149,7 @@ function PosesPageContent() {
           <EnhancedSearchBar
             onSearch={handleSearchSubmit}
             onAISearchResult={handleAISearchResult}
-            initialValue={filters.search}
+            initialValue={searchQuery}
             showSearchInfo={true}
           />
         </div>
@@ -451,6 +451,3 @@ function PoseModal({ pose, onClose }) {
     </div>
   )
 }
-
-// Export components for testing
-export { PosesPageContent, PoseCard, PoseModal }
