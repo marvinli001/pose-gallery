@@ -28,14 +28,16 @@ interface AIPoseResult {
   description: string;
   scene_category: string;
   angle: string;
+  ai_tags: string;
   view_count: number;
   created_at: string;
   ai_relevance_explanation?: string;
+  shooting_tips?: string;
 }
 
 interface Props {
   onSearch: (query: string) => void;
-  onAISearchResult?: (poses: AIPoseResult[]) => void;  // 修复类型定义
+  onAISearchResult?: (poses: AIPoseResult[]) => void;
   initialValue?: string;
   showSearchInfo?: boolean;
 }
@@ -53,6 +55,7 @@ const EnhancedSearchBar: React.FC<Props> = ({
   const [searchInfo, setSearchInfo] = useState<SearchInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isAiDatabaseLoading, setIsAiDatabaseLoading] = useState(false);
   
   const debouncedQuery = useDebounce(query, 300);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -88,6 +91,7 @@ const EnhancedSearchBar: React.FC<Props> = ({
 
     setIsLoading(true);
     setShowSuggestions(false);
+    setSearchInfo(null); // 清除之前的搜索信息
     
     try {
       // 调用增强搜索 API
@@ -98,8 +102,10 @@ const EnhancedSearchBar: React.FC<Props> = ({
       if (response.ok) {
         const data = await response.json();
         setSearchInfo(data.search_info);
-        onSearch(query);
       }
+      
+      // 执行普通搜索
+      onSearch(query);
     } catch (error) {
       console.error('搜索失败:', error);
       onSearch(query);
@@ -108,7 +114,7 @@ const EnhancedSearchBar: React.FC<Props> = ({
     }
   };
 
-  // AI 搜索功能
+  // AI 搜索功能 - 优化查询但使用普通搜索
   const handleAiSearch = async () => {
     if (!query.trim()) return;
 
@@ -116,7 +122,6 @@ const EnhancedSearchBar: React.FC<Props> = ({
     setShowSuggestions(false);
     
     try {
-      // 修复：调用正确的API路径
       const response = await fetch('/api/search/ai', {
         method: 'POST',
         headers: {
@@ -127,18 +132,25 @@ const EnhancedSearchBar: React.FC<Props> = ({
       
       if (response.ok) {
         const data = await response.json();
-        // 使用 AI 优化后的查询进行搜索
-        if (data.optimized_query) {
-          setQuery(data.optimized_query);
-          setSearchInfo({
-            original_query: query,
-            corrected_query: data.optimized_query,
-            expanded_queries: data.expanded_queries || [data.optimized_query],
-            suggestions: data.suggestions || [],
-            ai_explanation: data.explanation
-          });
-          onSearch(data.optimized_query);
-        }
+        console.log('AI搜索响应:', data);
+        
+        // 设置AI搜索信息
+        setSearchInfo({
+          original_query: query,
+          corrected_query: data.optimized_query,
+          expanded_queries: data.expanded_queries || [data.optimized_query || query],
+          suggestions: data.suggestions || [],
+          ai_explanation: data.explanation || 'AI已优化您的搜索查询'
+        });
+        
+        // 使用优化后的查询进行普通搜索
+        const optimizedQuery = data.optimized_query || query;
+        setQuery(optimizedQuery);
+        onSearch(optimizedQuery);
+      } else {
+        console.error('AI搜索API响应错误:', response.status);
+        // 回退到普通搜索
+        onSearch(query);
       }
     } catch (error) {
       console.error('AI搜索失败:', error);
@@ -149,52 +161,61 @@ const EnhancedSearchBar: React.FC<Props> = ({
     }
   };
 
+  // AI数据库搜索功能 - 直接从AI数据库获取结果
   const handleAiDatabaseSearch = async () => {
     if (!query.trim()) return;
 
-    setIsAiLoading(true);
+    setIsAiDatabaseLoading(true);
     setShowSuggestions(false);
     
     try {
-        // 修复：调用正确的API路径
-        const response = await fetch('/api/search/ai-database', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ 
-                query: query.trim(),
-                max_results: 20 
-            })
+      console.log('开始AI数据库搜索:', query);
+      
+      const response = await fetch('/api/search/ai-database', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          query: query.trim(),
+          max_results: 20 
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('AI数据库搜索响应:', data);
+        
+        // 设置AI搜索信息
+        setSearchInfo({
+          original_query: query,
+          ai_explanation: data.ai_explanation || '使用AI分析找到最相关的拍照姿势',
+          search_intent: data.search_intent?.intent_type || '智能匹配',
+          query_time: data.query_time_ms,
+          expanded_queries: [],
+          suggestions: []
         });
         
-        if (response.ok) {
-            const data = await response.json();
-            
-            // 显示AI搜索结果和解释
-            setSearchInfo({
-                original_query: query,
-                ai_explanation: data.ai_explanation,
-                search_intent: data.search_intent?.intent_type,
-                query_time: data.query_time_ms,
-                expanded_queries: [],
-                suggestions: []
-            });
-            
-            // 使用AI搜索结果
-            if (onAISearchResult) {
-                onAISearchResult(data.poses);
-            } else {
-                // 如果没有AI搜索结果回调，回退到普通搜索
-                onSearch(query);
-            }
+        // 调用AI搜索结果回调
+        if (onAISearchResult && data.poses && Array.isArray(data.poses)) {
+          console.log('调用AI搜索结果回调，姿势数量:', data.poses.length);
+          onAISearchResult(data.poses);
+        } else {
+          console.warn('AI搜索结果为空或onAISearchResult未定义');
+          // 如果没有结果或回调未定义，执行普通搜索
+          onSearch(query);
         }
-    } catch (error) {
-        console.error('AI数据库搜索失败:', error);
+      } else {
+        console.error('AI数据库搜索API响应错误:', response.status, await response.text());
         // 回退到普通搜索
         onSearch(query);
+      }
+    } catch (error) {
+      console.error('AI数据库搜索失败:', error);
+      // 回退到普通搜索
+      onSearch(query);
     } finally {
-        setIsAiLoading(false);
+      setIsAiDatabaseLoading(false);
     }
   };
   
@@ -288,18 +309,18 @@ const EnhancedSearchBar: React.FC<Props> = ({
             onKeyDown={handleKeyDown}
             placeholder="智能搜索：「俏皮可爱」「咖啡厅拍照」「坐姿写真」..."
             className="w-full px-4 py-3 pr-32 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
-            disabled={isLoading || isAiLoading}
+            disabled={isLoading || isAiLoading || isAiDatabaseLoading}
           />
           
           {/* AI数据库搜索按钮 */}
           <button
             type="button"
             onClick={handleAiDatabaseSearch}
-            disabled={isLoading || isAiLoading}
+            disabled={isLoading || isAiLoading || isAiDatabaseLoading}
             className="absolute right-24 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-green-600 disabled:opacity-50 transition-colors"
             title="AI数据库搜索"
           >
-            {isAiLoading ? (
+            {isAiDatabaseLoading ? (
               <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
             ) : (
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -312,7 +333,7 @@ const EnhancedSearchBar: React.FC<Props> = ({
           <button
             type="button"
             onClick={handleAiSearch}
-            disabled={isLoading || isAiLoading}
+            disabled={isLoading || isAiLoading || isAiDatabaseLoading}
             className="absolute right-12 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-purple-600 disabled:opacity-50 transition-colors"
             title="AI智能搜索"
           >
@@ -328,7 +349,7 @@ const EnhancedSearchBar: React.FC<Props> = ({
           {/* 普通搜索按钮 */}
           <button
             type="submit"
-            disabled={isLoading || isAiLoading}
+            disabled={isLoading || isAiLoading || isAiDatabaseLoading}
             className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-blue-600 disabled:opacity-50"
           >
             {isLoading ? (
@@ -377,7 +398,7 @@ const EnhancedSearchBar: React.FC<Props> = ({
               🔧 已自动纠正：{searchInfo.original_query} → {searchInfo.corrected_query}
             </div>
           )}
-          {searchInfo.expanded_queries.length > 1 && (
+          {searchInfo.expanded_queries.length > 0 && (
             <div className="text-blue-600 mb-2">
               🔍 扩展搜索：{searchInfo.expanded_queries.join(', ')}
             </div>
