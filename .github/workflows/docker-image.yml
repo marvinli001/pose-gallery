@@ -15,7 +15,7 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout
       uses: actions/checkout@v3
@@ -63,12 +63,15 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-    - name: Build and push frontend image
+    - name: Build and push frontend image (no-cache)
       uses: docker/build-push-action@v4
       with:
         context: ./frontend
-        push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ steps.meta-frontend.outputs.tags }}
-        labels: ${{ steps.meta-frontend.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        push:    ${{ github.event_name != 'pull_request' }}
+        tags:    ${{ steps.meta-frontend.outputs.tags }}
+        labels:  ${{ steps.meta-frontend.outputs.labels }}
+        # 强制不走缓存，保证每次都用最新代码
+        no-cache: true
+        # 以下两行选注释掉，或留作后面恢复用
+        # cache-from: type=gha
+        # cache-to:   type=gha,mode=max
