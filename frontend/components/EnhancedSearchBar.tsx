@@ -33,6 +33,7 @@ const EnhancedSearchBar: React.FC<Props> = ({
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [searchInfo, setSearchInfo] = useState<SearchInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAiLoading, setIsAiLoading] = useState(false);
   
   const debouncedQuery = useDebounce(query, 300);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -85,6 +86,46 @@ const EnhancedSearchBar: React.FC<Props> = ({
       onSearch(query);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // 新增：AI 搜索功能
+  const handleAiSearch = async () => {
+    if (!query.trim()) return;
+
+    setIsAiLoading(true);
+    setShowSuggestions(false);
+    
+    try {
+      // 调用 AI 搜索 API
+      const response = await fetch('/api/search/ai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query: query.trim() })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        // 使用 AI 优化后的查询进行搜索
+        if (data.optimized_query) {
+          setQuery(data.optimized_query);
+          setSearchInfo({
+            original_query: query,
+            corrected_query: data.optimized_query,
+            expanded_queries: data.expanded_queries || [data.optimized_query],
+            suggestions: data.suggestions || []
+          });
+          onSearch(data.optimized_query);
+        }
+      }
+    } catch (error) {
+      console.error('AI搜索失败:', error);
+      // 回退到普通搜索
+      onSearch(query);
+    } finally {
+      setIsAiLoading(false);
     }
   };
 
@@ -177,12 +218,31 @@ const EnhancedSearchBar: React.FC<Props> = ({
             onFocus={() => setShowSuggestions(true)}
             onKeyDown={handleKeyDown}
             placeholder="智能搜索：「俏皮可爱」「咖啡厅拍照」「坐姿写真」..."
-            className="w-full px-4 py-3 pr-12 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
-            disabled={isLoading}
+            className="w-full px-4 py-3 pr-20 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+            disabled={isLoading || isAiLoading}
           />
+          
+          {/* AI 搜索按钮 */}
+          <button
+            type="button"
+            onClick={handleAiSearch}
+            disabled={isLoading || isAiLoading}
+            className="absolute right-12 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-purple-600 disabled:opacity-50 transition-colors"
+            title="AI智能搜索"
+          >
+            {isAiLoading ? (
+              <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+            )}
+          </button>
+
+          {/* 普通搜索按钮 */}
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isLoading || isAiLoading}
             className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-blue-600 disabled:opacity-50"
           >
             {isLoading ? (
