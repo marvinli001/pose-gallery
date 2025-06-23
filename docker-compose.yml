@@ -29,8 +29,11 @@ services:
       - OSS_BUCKET=${OSS_BUCKET}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4-vision-preview}
+      - VECTOR_INDEX_PATH=/app/backend/vector_index/faiss.index
+      - VECTOR_ID_MAP_PATH=/app/backend/vector_index/id_map.json
     volumes:
       - ./backend/logs:/app/logs
+      - ./backend/vector_index:/app/backend/vector_index
     depends_on:
       - mysql
       - redis
