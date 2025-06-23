@@ -13,6 +13,8 @@ venv/
 backend/venv/
 backend/__pycache__/
 backend/*.pyc
+backend/vector_index/
+backend/logs/
 *.pyd
 *.so
 *.egg-info/

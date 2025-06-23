@@ -47,11 +47,21 @@ scripts/    # 自动化处理与管理工具
 ./init-db.sh       # 初始化数据库
 ```
 
+向量索引数据默认位于 `backend/vector_index`，容器会将该目录挂载到本地以保持数据持久化。
+
 启动后访问：
 
 - 🌐 前端：http://localhost:3000
 - 🛠️ 后端接口：http://localhost:8000
 - 📚 API 文档：http://localhost:8000/docs
+
+向量检索接口：
+
+```bash
+curl -X POST http://localhost:8000/api/v1/search/vector \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "咖啡馆 坐姿", "top_k": 5}'
+```
 
 ## 数据库初始化
 
@@ -64,6 +74,8 @@ scripts/    # 自动化处理与管理工具
 - `python backend/scripts/auto_process_images_enhanced.py --scan-oss`：扫描 OSS 并处理新图片。
 - `python backend/scripts/manage.py stats`：查看统计信息及热门搜索词。
 - `python backend/scripts/health_check.py --verbose`：输出依赖服务状态。
+- `python backend/scripts/build_vector_index.py`：生成姿势文本的向量索引。
+  结果存储在 `backend/vector_index/`，该目录通过 Docker 卷持久化。
 
 ## 贡献 & 开发
 

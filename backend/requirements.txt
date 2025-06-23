@@ -26,3 +26,5 @@ python-dotenv==1.0.0
 jieba==0.42.1
 fuzzywuzzy==0.18.0
 python-Levenshtein==0.21.1
+faiss-cpu==1.7.4
+sentence-transformers==2.2.2

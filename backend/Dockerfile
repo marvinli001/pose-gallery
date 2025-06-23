@@ -36,7 +36,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY . .
 
 # 创建必要目录
-RUN mkdir -p logs
+RUN mkdir -p logs backend/vector_index
 
 # 创建非root用户
 RUN useradd --create-home --shell /bin/bash app && \
