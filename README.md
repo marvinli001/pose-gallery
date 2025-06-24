@@ -1,4 +1,4 @@
-# Pose Gallery ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
+# Pose Gallery ![Platform](https://img.shields.io/badge/Platform-Docker-blue?logo=docker&logoColor=white) ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 > 📸 **AI 驱动的摄影姿势图库**
 >
@@ -63,6 +63,12 @@ curl -X POST http://localhost:8000/api/v1/search/vector \
   -d '{"query": "咖啡馆 坐姿", "top_k": 5}'
 ```
 
+## 向量搜索基础
+
+1. 运行 `python backend/scripts/build_vector_index.py` 生成向量索引，文件位于 `backend/vector_index/`。
+2. 服务启动后可通过 `GET /api/v1/search/vector/status` 查看向量搜索是否可用。
+3. 检索接口 `POST /api/v1/search/vector` 支持 `query`、`top_k` 与 `use_adaptive` 参数，其中 `use_adaptive` 会根据结果数量自动调整阈值。
+
 ## 数据库初始化
 
 `migrations/init_database.sql` 含完整表结构及示例同义词。运行 `backend/scripts/init_db.py` 会根据 `.env` 自动创建数据库并导入数据。
@@ -81,3 +87,8 @@ curl -X POST http://localhost:8000/api/v1/search/vector \
 
 1. 前后端遵循 eslint/flake8 规范，提交前请确保代码通过检查。
 2. 欢迎通过 Issue 或 Pull Request 反馈问题与贡献改进。
+
+## 未来优化方向
+
+- 持续改进向量搜索结果的排序与召回质量。
+- 计划以向量搜索替换现有 `AI 数据库搜索`，统一检索逻辑。
