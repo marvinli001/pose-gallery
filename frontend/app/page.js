@@ -17,6 +17,7 @@ function PosesPageContent() {
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '')
   const [selectedPose, setSelectedPose] = useState(null)
   const [isAISearch, setIsAISearch] = useState(false) // 标记是否为AI搜索
+  const [searchType, setSearchType] = useState('normal') // 新增：记录搜索类型 'normal' | 'ai' | 'vector'
   const [filters, setFilters] = useState({
     category: searchParams.get('category') || '',
     search: searchParams.get('search') || '',
@@ -31,6 +32,7 @@ function PosesPageContent() {
     setPage(1);
     setHasMore(false); // AI搜索结果不需要分页
     setIsAISearch(true); // 标记为AI搜索
+    setSearchType(aiPoses && aiPoses.length > 0 ? 'ai' : 'normal'); // 设置搜索类型
     setLoading(false);
   }, []);
 
@@ -51,7 +53,11 @@ function PosesPageContent() {
 
   // 将 fetchPoses 包装为 useCallback - 必须在 useEffect 之前定义
   const fetchPoses = useCallback(async (reset = false) => {
-    if (isAISearch && !reset) return; // 如果是AI搜索结果，不进行普通搜索
+    // 如果是AI搜索结果且不是重置操作，不进行普通搜索
+    if ((isAISearch || searchType === 'ai' || searchType === 'vector') && !reset) {
+      console.log('跳过普通搜索，当前搜索类型:', searchType);
+      return;
+    }
     
     setLoading(reset);
     try {
@@ -72,6 +78,7 @@ function PosesPageContent() {
           setPoses(data.poses || []);
           setPage(2);
           setIsAISearch(false); // 重置AI搜索标记
+          setSearchType('normal'); // 重置搜索类型
         } else {
           setPoses(prev => [...prev, ...(data.poses || [])]);
           setPage(prev => prev + 1);
@@ -84,25 +91,32 @@ function PosesPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [page, filters, isAISearch]);
+  }, [page, filters, isAISearch, searchType]);
 
   // loadMore 也需要更新依赖
   const loadMore = useCallback(() => {
-    if (!loading && hasMore && !isAISearch) { // AI搜索结果不支持加载更多
+    if (!loading && hasMore && searchType === 'normal') { // 只有普通搜索支持加载更多
       fetchPoses(false);
     }
-  }, [loading, hasMore, fetchPoses, isAISearch]);
+  }, [loading, hasMore, fetchPoses, searchType]);
 
-  // 监听filters变化，触发搜索
+  // 监听filters变化，触发搜索 - 但要排除AI搜索状态
   useEffect(() => {
-    console.log('Filters changed:', filters);
+    // 如果当前是AI搜索状态，不要触发普通搜索
+    if (searchType === 'ai' || searchType === 'vector') {
+      console.log('跳过filters触发的搜索，当前搜索类型:', searchType);
+      return;
+    }
+    
+    console.log('Filters changed, 触发普通搜索:', filters);
     fetchPoses(true);
-  }, [filters, fetchPoses]);
+  }, [filters]); // 移除fetchPoses依赖，避免循环
 
-  // 无限滚动
+  // 无限滚动 - 只在普通搜索时生效
   useEffect(() => {
     const handleScroll = () => {
-      if (window.innerHeight + document.documentElement.scrollTop 
+      if (searchType === 'normal' && 
+          window.innerHeight + document.documentElement.scrollTop 
           >= document.documentElement.offsetHeight - 1000) {
         loadMore();
       }
@@ -110,7 +124,7 @@ function PosesPageContent() {
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [loadMore]);
+  }, [loadMore, searchType]);
 
   const handleFilterChange = (filterType, value) => {
     console.log('Filter change:', filterType, value);
@@ -119,31 +133,34 @@ function PosesPageContent() {
       [filterType]: prev[filterType] === value ? '' : value
     }));
     setIsAISearch(false); // 重置AI搜索标记
+    setSearchType('normal'); // 重置搜索类型
   };
 
-// 修复：处理搜索提交 - 正确的参数类型
-const handleSearchSubmit = useCallback((query) => {
-  console.log('处理搜索提交:', query);
-  setSearchQuery(query);
-  setFilters(prev => ({ ...prev, search: query }));
-  setIsAISearch(false); // 重置AI搜索标记
-}, []);
+  // 修复：处理搜索提交 - 正确的参数类型
+  const handleSearchSubmit = useCallback((query) => {
+    console.log('处理普通搜索提交:', query);
+    setSearchQuery(query);
+    setFilters(prev => ({ ...prev, search: query }));
+    setIsAISearch(false); // 重置AI搜索标记
+    setSearchType('normal'); // 设置为普通搜索
+  }, []);
   
   // 新增：重置搜索状态的回调
-const handleResetSearch = useCallback(() => {
-  console.log('重置搜索状态');
-  setSearchQuery('');
-  setFilters(prev => ({ 
-    ...prev, 
-    search: '' 
-  }));
-  setIsAISearch(false);
-  setPoses([]);
-  setPage(1);
-  setHasMore(true);
-  // 重新加载默认姿势
-  fetchPoses(true);
-}, [fetchPoses]);
+  const handleResetSearch = useCallback(() => {
+    console.log('重置搜索状态');
+    setSearchQuery('');
+    setFilters(prev => ({ 
+      ...prev, 
+      search: '' 
+    }));
+    setIsAISearch(false);
+    setSearchType('normal');
+    setPoses([]);
+    setPage(1);
+    setHasMore(true);
+    // 重新加载默认姿势
+    fetchPoses(true);
+  }, []); // 移除fetchPoses依赖
 
   return (
     <div className="min-h-screen">
@@ -180,8 +197,8 @@ const handleResetSearch = useCallback(() => {
           
           <EnhancedSearchBar
             onSearch={handleSearchSubmit}
-            onAISearchResult={handleAISearchResult}  // ✅ 已正确传递
-            onResetSearch={handleResetSearch}  // ✅ 新增重置回调
+            onAISearchResult={handleAISearchResult}
+            onResetSearch={handleResetSearch}
             initialValue={searchQuery}
             showSearchInfo={true}
           />
@@ -210,7 +227,7 @@ const handleResetSearch = useCallback(() => {
           </section>
 
           {/* 其他筛选 - AI搜索时隐藏 */}
-          {!isAISearch && (
+          {searchType === 'normal' && (
             <div className="advanced-filters">
               <div className="filter-row">
                 <div className="filter-group">
@@ -261,9 +278,10 @@ const handleResetSearch = useCallback(() => {
       <main className="main-content">
         <div className="container">
           {/* AI搜索结果提示 */}
-          {isAISearch && poses.length > 0 && (
+          {(searchType === 'ai' || searchType === 'vector') && poses.length > 0 && (
             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 flex items-center justify-between">
-              🤖 AI智能搜索结果 - 共找到 {poses.length} 个相关姿势
+              {searchType === 'vector' ? '🔍' : '🤖'} 
+              {searchType === 'vector' ? '向量搜索结果' : 'AI智能搜索结果'} - 共找到 {poses.length} 个相关姿势
               <button 
                 className="reset-search-btn"
                 onClick={handleResetSearch}
@@ -290,14 +308,14 @@ const handleResetSearch = useCallback(() => {
             </div>
           )}
 
-          {loading && poses.length > 0 && !isAISearch && (
+          {loading && poses.length > 0 && searchType === 'normal' && (
             <div className="loading-more">
               <div className="loading-spinner"></div>
               <span>加载更多...</span>
             </div>
           )}
 
-          {!hasMore && poses.length > 0 && !isAISearch && (
+          {!hasMore && poses.length > 0 && searchType === 'normal' && (
             <div className="end-message">
               已加载全部内容
             </div>
