@@ -193,6 +193,31 @@ const EnhancedSearchBar: React.FC<Props> = ({
 
     try {
       console.log('开始向量搜索:', query);
+      
+      // 首先检查向量搜索服务状态
+      const statusResponse = await fetch('/api/search/vector/status');
+      let serviceAvailable = true;
+      
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+        serviceAvailable = statusData.available;
+        console.log('向量搜索服务状态:', statusData);
+      }
+      
+      if (!serviceAvailable) {
+        console.warn('向量搜索服务不可用，回退到普通搜索');
+        setSearchInfo({
+          original_query: query,
+          ai_explanation: '向量搜索服务暂时不可用，已为您执行普通搜索',
+          search_intent: '服务降级',
+          query_time: 0,
+          expanded_queries: [],
+          suggestions: [],
+        });
+        onSearch(query);
+        return;
+      }
+      
       const response = await fetch('/api/search/vector', {
         method: 'POST',
         headers: {
@@ -210,8 +235,10 @@ const EnhancedSearchBar: React.FC<Props> = ({
 
         setSearchInfo({
           original_query: query,
-          ai_explanation: '使用向量相似度匹配',
-          search_intent: '向量匹配',
+          ai_explanation: data.service_available 
+            ? '使用向量相似度匹配找到最相关的姿势' 
+            : '向量搜索服务不可用，已为您执行普通搜索',
+          search_intent: data.service_available ? '向量匹配' : '服务降级',
           query_time: data.query_time_ms,
           expanded_queries: [],
           suggestions: [],
@@ -224,6 +251,7 @@ const EnhancedSearchBar: React.FC<Props> = ({
             onSearch(query);
           }
         } else {
+          console.log('向量搜索无结果，执行普通搜索');
           onSearch(query);
         }
       } else {

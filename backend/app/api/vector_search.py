@@ -4,17 +4,22 @@ from typing import List, Tuple, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import time
+import logging
 
 from ..services.vector_search_service import VectorSearchService
 from ..database import get_db
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Dependency to create service instance
-
+# 全局服务实例，启动时初始化
+_vector_service = None
 
 def get_service():
-    return VectorSearchService()
+    global _vector_service
+    if _vector_service is None:
+        _vector_service = VectorSearchService()
+    return _vector_service
 
 
 class VectorSearchRequest(BaseModel):
@@ -41,6 +46,17 @@ class VectorSearchResponse(BaseModel):
     poses: List[PoseWithScore]
     total: int
     query_time_ms: int
+    service_available: bool = True
+
+
+@router.get("/search/vector/status")
+async def vector_search_status():
+    """检查向量搜索服务状态"""
+    service = get_service()
+    return {
+        "available": service.is_available(),
+        "message": "向量搜索服务可用" if service.is_available() else "向量搜索服务不可用，请生成向量索引"
+    }
 
 
 @router.post("/search/vector", response_model=VectorSearchResponse)
@@ -51,6 +67,17 @@ async def vector_search(
 ):
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty")
+    
+    # 检查服务是否可用
+    if not service.is_available():
+        logger.warning("向量搜索服务不可用，返回空结果")
+        return VectorSearchResponse(
+            poses=[], 
+            total=0, 
+            query_time_ms=0,
+            service_available=False
+        )
+    
     try:
         start = time.time()
         ids_scores = service.search(request.query, top_k=request.top_k)
@@ -58,7 +85,10 @@ async def vector_search(
 
         if not pose_ids:
             return VectorSearchResponse(
-                poses=[], total=0, query_time_ms=int((time.time() - start) * 1000)
+                poses=[], 
+                total=0, 
+                query_time_ms=int((time.time() - start) * 1000),
+                service_available=True
             )
 
         result = db.execute(
@@ -68,7 +98,7 @@ async def vector_search(
                        scene_category, angle, shooting_tips, ai_tags,
                        view_count, created_at
                 FROM poses
-                WHERE id IN :ids
+                WHERE id IN :ids AND status = 'active'
                 """
             ),
             {"ids": tuple(pose_ids)},
@@ -98,8 +128,11 @@ async def vector_search(
 
         query_time = int((time.time() - start) * 1000)
         return VectorSearchResponse(
-            poses=poses, total=len(poses), query_time_ms=query_time
+            poses=poses, 
+            total=len(poses), 
+            query_time_ms=query_time,
+            service_available=True
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
+        logger.error(f"向量搜索执行失败: {e}")
+        raise HTTPException(status_code=500, detail=f"向量搜索失败: {str(e)}")
