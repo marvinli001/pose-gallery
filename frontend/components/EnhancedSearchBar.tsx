@@ -33,6 +33,7 @@ interface AIPoseResult {
   shooting_tips?: string;
 }
 
+
 interface Props {
   onSearch: (query: string) => void;
   onAISearchResult?: (poses: AIPoseResult[]) => void;
@@ -55,6 +56,8 @@ const EnhancedSearchBar: React.FC<Props> = ({
   const [searchInfo, setSearchInfo] = useState<SearchInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isAiDatabaseLoading, setIsAiDatabaseLoading] = useState(false);
+  const [isVectorLoading, setIsVectorLoading] = useState(false);
+  const [useVectorSearch, setUseVectorSearch] = useState(false);
   
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
@@ -177,6 +180,65 @@ const EnhancedSearchBar: React.FC<Props> = ({
     }
   };
 
+  const handleVectorSearch = async () => {
+    if (!query.trim()) {
+      if (onResetSearch) {
+        onResetSearch();
+      }
+      return;
+    }
+
+    setIsVectorLoading(true);
+    setShowSuggestions(false);
+
+    try {
+      console.log('开始向量搜索:', query);
+      const response = await fetch('/api/search/vector', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: query.trim(),
+          top_k: 20,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('向量搜索响应:', data);
+
+        setSearchInfo({
+          original_query: query,
+          ai_explanation: '使用向量相似度匹配',
+          search_intent: '向量匹配',
+          query_time: data.query_time_ms,
+          expanded_queries: [],
+          suggestions: [],
+        });
+
+        if (data.poses && Array.isArray(data.poses) && data.poses.length > 0) {
+          if (onAISearchResult) {
+            onAISearchResult(data.poses);
+          } else {
+            onSearch(query);
+          }
+        } else {
+          onSearch(query);
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('向量搜索API响应错误:', response.status, errorText);
+        onSearch(query);
+      }
+    } catch (error) {
+      console.error('向量搜索失败:', error);
+      onSearch(query);
+    } finally {
+      setIsVectorLoading(false);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!showSuggestions || suggestions.length === 0) return;
 
@@ -270,15 +332,21 @@ return (
           disabled={isLoading || isAiDatabaseLoading}
         />
         
-        {/* AI数据库搜索按钮 */}
+        {/* AI数据库/向量 搜索按钮 */}
         <button
           type="button"
-          onClick={handleAiDatabaseSearch}
-          disabled={isLoading || isAiDatabaseLoading}
+          onClick={() => {
+            if (useVectorSearch) {
+              handleVectorSearch();
+            } else {
+              handleAiDatabaseSearch();
+            }
+          }}
+          disabled={isLoading || isAiDatabaseLoading || isVectorLoading}
           className="absolute right-12 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-purple-600 disabled:opacity-50 transition-colors flex items-center justify-center w-8 h-8"
           title="AI智能搜索"
         >
-          {isAiDatabaseLoading ? (
+          {isAiDatabaseLoading || isVectorLoading ? (
             <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
           ) : (
             <span className="text-lg">✨</span>
@@ -288,7 +356,7 @@ return (
         {/* 普通搜索按钮 */}
         <button
           type="submit"
-          disabled={isLoading || isAiDatabaseLoading}
+          disabled={isLoading || isAiDatabaseLoading || isVectorLoading}
           className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-blue-600 disabled:opacity-50 transition-colors flex items-center justify-center w-8 h-8"
           title="普通搜索"
         >
@@ -300,6 +368,16 @@ return (
             </svg>
           )}
         </button>
+      </div>
+      <div className="flex items-center mt-2 text-sm">
+        <input
+          id="vector-toggle"
+          type="checkbox"
+          className="mr-2"
+          checked={useVectorSearch}
+          onChange={(e) => setUseVectorSearch(e.target.checked)}
+        />
+        <label htmlFor="vector-toggle">使用向量搜索</label>
       </div>
     </form>
 
