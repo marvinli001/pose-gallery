@@ -19,10 +19,10 @@ sys.path.insert(0, str(project_root))
 from app.database import SessionLocal
 
 # 配置参数
-EMBED_MODEL = os.getenv("OPENAI_MODEL", "text-embedding-3-small")
+EMBED_MODEL = "text-embedding-3-small"
 INDEX_PATH = os.getenv("VECTOR_INDEX_PATH", "backend/vector_index/faiss.index")
 ID_MAP_PATH = os.getenv("VECTOR_ID_MAP_PATH", "backend/vector_index/id_map.json")
-BATCH_SIZE = 50  # OpenAI API批量处理限制
+BATCH_SIZE = 100  # OpenAI API批量处理限制
 MAX_RETRIES = 3  # 重试次数
 
 

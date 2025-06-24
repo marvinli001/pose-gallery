@@ -9,7 +9,7 @@ import faiss
 
 logger = logging.getLogger(__name__)
 
-EMBED_MODEL = os.getenv("OPENAI_MODEL", "text-embedding-3-small")
+EMBED_MODEL = "text-embedding-3-small"
 INDEX_PATH = os.getenv("VECTOR_INDEX_PATH", "backend/vector_index/faiss.index")
 ID_MAP_PATH = os.getenv("VECTOR_ID_MAP_PATH", "backend/vector_index/id_map.json")
 
