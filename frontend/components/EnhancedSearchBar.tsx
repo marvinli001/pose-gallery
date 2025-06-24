@@ -33,9 +33,6 @@ interface AIPoseResult {
   shooting_tips?: string;
 }
 
-interface VectorPoseResult extends AIPoseResult {
-  score: number
-}
 
 interface Props {
   onSearch: (query: string) => void;

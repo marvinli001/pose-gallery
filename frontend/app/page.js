@@ -97,7 +97,7 @@ function PosesPageContent() {
   useEffect(() => {
     console.log('Filters changed:', filters);
     fetchPoses(true);
-  }, [filters]); // 只依赖filters
+  }, [filters, fetchPoses]);
 
   // 无限滚动
   useEffect(() => {
