@@ -226,6 +226,7 @@ const EnhancedSearchBar: React.FC<Props> = ({
         body: JSON.stringify({
           query: query.trim(),
           top_k: 20,
+          use_adaptive: true,  // 使用自适应搜索
         }),
       });
 
@@ -233,10 +234,30 @@ const EnhancedSearchBar: React.FC<Props> = ({
         const data = await response.json();
         console.log('向量搜索响应:', data);
 
+        // 构建搜索信息，包含质量指标
+        let explanation = '使用向量相似度匹配找到最相关的姿势';
+        
+        if (data.search_info) {
+          const info = data.search_info;
+          explanation += `\n找到 ${info.found_results} 个结果`;
+          
+          if (info.avg_similarity) {
+            explanation += `，平均相似度: ${info.avg_similarity}`;
+          }
+          
+          if (info.quality_warning) {
+            explanation += `\n⚠️ ${info.quality_warning}`;
+          }
+          
+          if (info.similarity_range) {
+            explanation += `\n相似度范围: ${info.similarity_range}`;
+          }
+        }
+
         setSearchInfo({
           original_query: query,
           ai_explanation: data.service_available 
-            ? '使用向量相似度匹配找到最相关的姿势' 
+            ? explanation
             : '向量搜索服务不可用，已为您执行普通搜索',
           search_intent: data.service_available ? '向量匹配' : '服务降级',
           query_time: data.query_time_ms,

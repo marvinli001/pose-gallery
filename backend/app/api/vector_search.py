@@ -25,6 +25,7 @@ def get_service():
 class VectorSearchRequest(BaseModel):
     query: str
     top_k: int = 10
+    use_adaptive: bool = True  # 新增：是否使用自适应阈值
 
 
 class PoseWithScore(BaseModel):
@@ -47,6 +48,7 @@ class VectorSearchResponse(BaseModel):
     total: int
     query_time_ms: int
     service_available: bool = True
+    search_info: Dict = {}  # 新增：搜索信息
 
 
 @router.get("/search/vector/status")
@@ -80,7 +82,17 @@ async def vector_search(
     
     try:
         start = time.time()
-        ids_scores = service.search(request.query, top_k=request.top_k)
+        
+        # 使用自适应搜索或标准搜索
+        if request.use_adaptive:
+            ids_scores = service.search_with_adaptive_threshold(
+                request.query, 
+                top_k=request.top_k,
+                min_results=max(1, request.top_k // 2)  # 至少返回一半数量
+            )
+        else:
+            ids_scores = service.search(request.query, top_k=request.top_k)
+        
         pose_ids = [pid for pid, _ in ids_scores]
 
         if not pose_ids:
@@ -88,7 +100,11 @@ async def vector_search(
                 poses=[], 
                 total=0, 
                 query_time_ms=int((time.time() - start) * 1000),
-                service_available=True
+                service_available=True,
+                search_info={
+                    "message": "未找到相关结果，请尝试其他关键词",
+                    "suggestion": "尝试使用更通用的词汇，如「人像」「室内」「户外」等"
+                }
             )
 
         result = db.execute(
@@ -127,12 +143,30 @@ async def vector_search(
                 poses.append({**data, "score": score})
 
         query_time = int((time.time() - start) * 1000)
+        
+        # 生成搜索信息
+        search_info = {
+            "found_results": len(poses),
+            "search_method": "自适应向量搜索" if request.use_adaptive else "向量搜索",
+            "avg_similarity": round(sum(p["score"] for p in poses) / len(poses), 3) if poses else 0
+        }
+        
+        if poses:
+            min_score = min(p["score"] for p in poses)
+            max_score = max(p["score"] for p in poses)
+            search_info["similarity_range"] = f"{min_score:.3f} - {max_score:.3f}"
+            
+            if min_score < 0.3:
+                search_info["quality_warning"] = "部分结果相关性较低，建议调整搜索词"
+        
         return VectorSearchResponse(
             poses=poses, 
             total=len(poses), 
             query_time_ms=query_time,
-            service_available=True
+            service_available=True,
+            search_info=search_info
         )
+        
     except Exception as e:
         logger.error(f"向量搜索执行失败: {e}")
         raise HTTPException(status_code=500, detail=f"向量搜索失败: {str(e)}")
