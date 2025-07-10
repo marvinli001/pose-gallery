@@ -6,7 +6,7 @@ from sqlalchemy import text
 import time
 import logging
 
-from ..services.vector_search_service import VectorSearchService
+from ..services.vector_search_service import EnhancedVectorSearchService
 from ..database import get_db
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ _vector_service = None
 def get_service():
     global _vector_service
     if _vector_service is None:
-        _vector_service = VectorSearchService()
+        _vector_service = EnhancedVectorSearchService()
     return _vector_service
 
 
@@ -65,7 +65,7 @@ async def vector_search_status():
 async def vector_search(
     request: VectorSearchRequest,
     db: Session = Depends(get_db),
-    service: VectorSearchService = Depends(get_service),
+    service: EnhancedVectorSearchService = Depends(get_service),
 ):
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty")

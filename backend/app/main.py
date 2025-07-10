@@ -9,7 +9,7 @@ import logging
 from .database import get_db, engine
 from .api import ai_search
 from .api import ai_database_search  # 新增
-from .api import vector_search
+from .api import enhanced_vector_search
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -34,7 +34,7 @@ app.add_middleware(
 # 注册外部路由模块
 app.include_router(ai_search.router, prefix="/api/v1", tags=["ai-search"])
 app.include_router(ai_database_search.router, prefix="/api/v1", tags=["ai-database-search"])  # 新增
-app.include_router(vector_search.router, prefix="/api/v1", tags=["vector-search"])
+app.include_router(enhanced_vector_search.router, prefix="/api/v1", tags=["vector-search"])
 # 改进的启动事件处理
 @app.on_event("startup")
 async def startup_event():
