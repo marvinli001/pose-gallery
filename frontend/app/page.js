@@ -100,7 +100,7 @@ function PosesPageContent() {
     }
   }, [loading, hasMore, fetchPoses, searchType]);
 
-  // 监听filters变化，触发搜索 - 但要排除AI搜索状态
+  // 监听filters变化，触发搜索 - 修复依赖数组
   useEffect(() => {
     // 如果当前是AI搜索状态，不要触发普通搜索
     if (searchType === 'ai' || searchType === 'vector') {
@@ -110,7 +110,7 @@ function PosesPageContent() {
     
     console.log('Filters changed, 触发普通搜索:', filters);
     fetchPoses(true);
-  }, [filters]); // 移除fetchPoses依赖，避免循环
+  }, [filters, fetchPoses, searchType]); // 添加缺失的依赖项
 
   // 无限滚动 - 只在普通搜索时生效
   useEffect(() => {
@@ -145,7 +145,7 @@ function PosesPageContent() {
     setSearchType('normal'); // 设置为普通搜索
   }, []);
   
-  // 新增：重置搜索状态的回调
+  // 新增：重置搜索状态的回调 - 修复依赖数组
   const handleResetSearch = useCallback(() => {
     console.log('重置搜索状态');
     setSearchQuery('');
@@ -160,7 +160,7 @@ function PosesPageContent() {
     setHasMore(true);
     // 重新加载默认姿势
     fetchPoses(true);
-  }, []); // 移除fetchPoses依赖
+  }, [fetchPoses]); // 添加缺失的依赖项
 
   return (
     <div className="min-h-screen">
@@ -365,7 +365,7 @@ export default function PosesPage() {
 function PoseCard({ pose, onClick }) {
   const [imageLoaded, setImageLoaded] = useState(false)
   const [imageError, setImageError] = useState(false)
-  const placeholderImage = "data:image/svg+xml,%3Csvg width='280' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23f7fafc'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='central' text-anchor='middle' fill='%23a0aec0'%3E📸%3C/text%3E%3C/svg%3E"
+  const placeholderImage = "data:image/svg+xml,%3Csvg width='280' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23f7fafc'/%3E%3Ctext x='50%25' y='50%25' fill='%23a0aec0' text-anchor='middle' dy='.3em'%3E%E5%8A%A0%E8%BD%BD%E4%B8%AD...%3C/text%3E%3C/svg%3E"
 
   const handleImageError = () => {
     console.error('Image load error for pose:', pose.id, pose.oss_url)
@@ -447,7 +447,7 @@ function PoseModal({ pose, onClose }) {
     setImageError(true);
   };
 
-  const placeholderImage = "data:image/svg+xml,%3Csvg width='800' height='600' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23f7fafc'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='central' text-anchor='middle' fill='%23a0aec0'%3E📸%3C/text%3E%3C/svg%3E";
+  const placeholderImage = "data:image/svg+xml,%3Csvg width='800' height='600' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23f7fafc'/%3E%3Ctext x='50%25' y='50%25' fill='%23a0aec0' text-anchor='middle' dy='.3em'%3E%E5%8A%A0%E8%BD%BD%E4%B8%AD...%3C/text%3E%3C/svg%3E";
 
   return (
     <div className="pose-modal-overlay" onClick={onClose}>

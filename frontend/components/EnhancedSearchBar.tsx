@@ -184,7 +184,7 @@ const EnhancedSearchBar: React.FC<Props> = ({
   };
 
   // 分页向量搜索函数
-  const handlePaginatedSearch = async (query: string, page: number = 1) => {
+  const handlePaginatedSearch = async (query: string) => {
     try {
       const result = await searchVectorPaginated({
         query,

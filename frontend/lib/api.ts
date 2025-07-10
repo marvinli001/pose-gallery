@@ -64,7 +64,7 @@ export interface VectorSearchResponse {
   total: number;
   query_time_ms: number;
   service_available: boolean;
-  search_info?: Record<string, any>;
+  search_info?: Record<string, unknown>; // 修复：使用 unknown 替代 any
 }
 
 // 新增分页搜索函数
