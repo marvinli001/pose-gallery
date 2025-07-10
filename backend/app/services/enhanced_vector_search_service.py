@@ -19,6 +19,7 @@ class EnhancedVectorSearchService:
         self.index = None
         self.id_map = None
         self.client = OpenAI(api_key=settings.openai_api_key)
+        self.available = False
         self._load_index()
     
     def _load_index(self):
@@ -28,9 +29,46 @@ class EnhancedVectorSearchService:
                 self.index = faiss.read_index(self.index_path)
                 with open(self.id_map_path, "r", encoding="utf-8") as f:
                     self.id_map = json.load(f)
-                logger.info("向量索引加载成功")
+                self.available = True
+                logger.info("增强版向量索引加载成功")
+            else:
+                logger.warning(f"向量索引文件未找到: {self.index_path} 或 {self.id_map_path}")
+                logger.warning("增强版向量搜索功能将不可用")
         except Exception as e:
-            logger.error(f"索引加载失败: {e}")
+            logger.error(f"增强版索引加载失败: {e}")
+    
+    def is_available(self) -> bool:
+        """检查服务是否可用"""
+        return self.available
+    
+    def search(self, query: str, top_k: int = 10) -> List[Tuple[int, float]]:
+        """基础向量搜索"""
+        if not self.available:
+            return []
+        
+        try:
+            # 生成查询向量
+            query_vec = self._embed(query)
+            if query_vec is None:
+                return []
+            
+            # 向量搜索
+            distances, indices = self.index.search(query_vec.reshape(1, -1), top_k)
+            
+            results = []
+            for idx, dist in zip(indices[0], distances[0]):
+                if idx < 0 or str(idx) not in self.id_map:
+                    continue
+                
+                pose_id = self.id_map[str(idx)]
+                similarity = self._distance_to_similarity(dist)
+                results.append((pose_id, similarity))
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"基础向量搜索失败: {e}")
+            return []
     
     def multi_stage_search(self, query: str, final_k: int = 10, 
                           stage1_k: int = 50, min_similarity: float = 0.3) -> List[Tuple[int, float]]:
@@ -52,7 +90,7 @@ class EnhancedVectorSearchService:
     
     def _vector_recall(self, query: str, top_k: int) -> List[Tuple[int, float, str]]:
         """阶段1：向量召回"""
-        if not self.index or not self.id_map:
+        if not self.available:
             return []
         
         try:
@@ -201,4 +239,5 @@ class EnhancedVectorSearchService:
     def _get_pose_text(self, pose_id: int) -> str:
         """获取pose的原始文本（需要从数据库查询）"""
         # 这里需要实现从数据库获取文本的逻辑
+        # 目前返回占位符
         return f"pose_{pose_id}_text"

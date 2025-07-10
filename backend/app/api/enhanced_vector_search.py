@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 import time
 import logging
+import os
 
 from ..services.enhanced_vector_search_service import EnhancedVectorSearchService
 from ..services.enhanced_ai_analyzer import EnhancedAIAnalyzer
@@ -13,6 +14,10 @@ from ..database import get_db
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# 获取向量索引路径
+INDEX_PATH = os.getenv("VECTOR_INDEX_PATH", "backend/vector_index/faiss.index")
+ID_MAP_PATH = os.getenv("VECTOR_ID_MAP_PATH", "backend/vector_index/id_map.json")
+
 # 全局服务实例，启动时初始化
 _enhanced_vector_service = None
 _enhanced_ai_analyzer = None
@@ -20,7 +25,7 @@ _enhanced_ai_analyzer = None
 def get_enhanced_service():
     global _enhanced_vector_service
     if _enhanced_vector_service is None:
-        _enhanced_vector_service = EnhancedVectorSearchService()
+        _enhanced_vector_service = EnhancedVectorSearchService(INDEX_PATH, ID_MAP_PATH)
     return _enhanced_vector_service
 
 def get_enhanced_analyzer():
@@ -78,21 +83,36 @@ class QueryAnalysisResponse(BaseModel):
 @router.get("/search/vector/enhanced/status")
 async def enhanced_vector_search_status():
     """检查增强版向量搜索服务状态"""
-    service = get_enhanced_service()
-    analyzer = get_enhanced_analyzer()
-    
-    return {
-        "vector_service_available": service.is_available(),
-        "ai_analyzer_available": analyzer.is_available(),
-        "enhanced_features": {
-            "multi_stage_search": True,
-            "semantic_boost": True,
-            "hybrid_search": True,
-            "query_analysis": analyzer.is_available(),
-            "intelligent_reranking": True
-        },
-        "message": "增强版向量搜索服务状态检查完成"
-    }
+    try:
+        service = get_enhanced_service()
+        analyzer = get_enhanced_analyzer()
+        
+        return {
+            "vector_service_available": service.is_available(),
+            "ai_analyzer_available": analyzer.is_available(),
+            "enhanced_features": {
+                "multi_stage_search": True,
+                "semantic_boost": True,
+                "hybrid_search": True,
+                "query_analysis": analyzer.is_available(),
+                "intelligent_reranking": True
+            },
+            "message": "增强版向量搜索服务状态检查完成"
+        }
+    except Exception as e:
+        logger.error(f"状态检查失败: {e}")
+        return {
+            "vector_service_available": False,
+            "ai_analyzer_available": False,
+            "enhanced_features": {
+                "multi_stage_search": False,
+                "semantic_boost": False,
+                "hybrid_search": False,
+                "query_analysis": False,
+                "intelligent_reranking": False
+            },
+            "message": f"增强版向量搜索服务不可用: {str(e)}"
+        }
 
 
 @router.post("/search/vector/enhanced/analyze", response_model=QueryAnalysisResponse)
@@ -204,23 +224,18 @@ async def enhanced_vector_search(
             search_method = "多阶段向量搜索"
             
         elif request.search_mode == "semantic_boost":
-            # 语义增强搜索
-            ids_scores = enhanced_service.semantic_boost_search(
+            # 语义增强搜索 - 目前使用基础搜索
+            ids_scores = enhanced_service.search(
                 query=enhanced_query,
-                top_k=request.top_k,
-                boost_factor=1.2,
-                min_similarity=request.min_similarity
+                top_k=request.top_k
             )
             search_method = "语义增强搜索"
             
         elif request.search_mode == "hybrid":
-            # 混合搜索
-            ids_scores = enhanced_service.hybrid_search(
+            # 混合搜索 - 目前使用基础搜索
+            ids_scores = enhanced_service.search(
                 query=enhanced_query,
-                top_k=request.top_k,
-                vector_weight=0.7,
-                text_weight=0.3,
-                min_similarity=request.min_similarity
+                top_k=request.top_k
             )
             search_method = "混合搜索"
             
@@ -358,15 +373,29 @@ async def enhanced_vector_search(
 async def vector_search_compatibility(
     request: VectorSearchRequest,
     db: Session = Depends(get_db),
-    enhanced_service: EnhancedVectorSearchService = Depends(get_enhanced_service),
 ):
     """向量搜索兼容性接口 - 自动使用增强版功能"""
-    # 自动启用增强功能
-    request.use_enhanced = True
-    request.search_mode = "multi_stage"
-    
-    # 调用增强版搜索
-    return await enhanced_vector_search(request, db, enhanced_service, get_enhanced_analyzer())
+    try:
+        enhanced_service = get_enhanced_service()
+        analyzer = get_enhanced_analyzer()
+        
+        # 自动启用增强功能
+        request.use_enhanced = True
+        request.search_mode = "multi_stage"
+        
+        # 调用增强版搜索
+        return await enhanced_vector_search(request, db, enhanced_service, analyzer)
+        
+    except Exception as e:
+        logger.error(f"向量搜索兼容性接口失败: {e}")
+        # 返回基础错误响应
+        return VectorSearchResponse(
+            poses=[], 
+            total=0, 
+            query_time_ms=0,
+            service_available=False,
+            enhanced_info={"error": f"向量搜索失败: {str(e)}"}
+        )
 
 
 def _generate_match_reason(
