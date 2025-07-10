@@ -60,6 +60,12 @@ class Settings(BaseSettings):
     # 安全配置
     allowed_hosts: str = "localhost,127.0.0.1"
     cors_origins: str = "http://localhost:3000"
+
+    # 向量搜索配置
+    vector_search_max_results: int = 100
+    vector_search_default_page_size: int = 20
+    vector_search_min_similarity: float = 0.3
+    vector_search_enable_pagination: bool = True
     
     @property
     def allowed_hosts_list(self) -> List[str]:

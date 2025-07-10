@@ -39,11 +39,16 @@ class VectorSearchRequest(BaseModel):
     query: str
     top_k: int = 10
     use_adaptive: bool = True
-    use_enhanced: bool = True  # 是否使用增强功能
-    search_mode: str = "multi_stage"  # multi_stage, semantic_boost, hybrid
+    use_enhanced: bool = True
+    search_mode: str = "multi_stage"  # multi_stage, semantic_boost, hybrid, dynamic, paginated, multi_tier
     min_similarity: float = 0.3
     category_filter: Optional[str] = None
     angle_filter: Optional[str] = None
+    # 新增分页参数
+    page: int = 1
+    page_size: int = 20
+    # 新增动态搜索参数
+    target_count: int = 20
 
 
 class PoseWithScore(BaseModel):
@@ -222,6 +227,43 @@ async def enhanced_vector_search(
                 min_similarity=request.min_similarity
             )
             search_method = "多阶段向量搜索"
+
+        elif request.search_mode == "dynamic":
+            # 动态阈值搜索
+            ids_scores = enhanced_service.search_with_dynamic_threshold(
+                query=enhanced_query,
+                target_count=request.target_count,
+                min_similarity=request.min_similarity
+            )
+            search_method = "动态阈值搜索"
+            
+        elif request.search_mode == "paginated":
+            # 分页搜索
+            search_result = enhanced_service.search_with_pagination(
+                query=enhanced_query,
+                page=request.page,
+                page_size=request.page_size,
+                similarity_threshold=2.0 - request.min_similarity  # 转换为距离阈值
+            )
+            ids_scores = search_result['results']
+            search_method = "分页搜索"
+            
+            # 添加分页信息到搜索信息中
+            search_info = {
+                "found_results": len(ids_scores),
+                "total_results": search_result['total'],
+                "current_page": search_result['page'],
+                "has_next_page": search_result['has_next'],
+                "search_method": search_method
+            }
+            
+        elif request.search_mode == "multi_tier":
+            # 多层次搜索
+            ids_scores = enhanced_service.multi_tier_search(
+                query=enhanced_query,
+                target_count=request.target_count
+            )
+            search_method = "多层次搜索"
             
         elif request.search_mode == "semantic_boost":
             # 语义增强搜索 - 目前使用基础搜索
@@ -473,3 +515,106 @@ def _intelligent_rerank(
 async def vector_search_status():
     """向量搜索状态检查 - 兼容性接口"""
     return await enhanced_vector_search_status()
+
+# 在现有的路由中添加新端点：
+
+@router.post("/search/vector/paginated", response_model=VectorSearchResponse)
+async def paginated_vector_search(
+    request: VectorSearchRequest,
+    db: Session = Depends(get_db),
+    enhanced_service: EnhancedVectorSearchService = Depends(get_enhanced_service),
+):
+    """专门的分页向量搜索端点"""
+    if not request.query.strip():
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
+    
+    if not enhanced_service.is_available():
+        return VectorSearchResponse(
+            poses=[], 
+            total=0, 
+            query_time_ms=0,
+            service_available=False
+        )
+    
+    try:
+        start = time.time()
+        
+        # 强制使用分页搜索
+        search_result = enhanced_service.search_with_pagination(
+            query=request.query,
+            page=request.page,
+            page_size=min(request.page_size, 50),  # 限制最大页大小
+            similarity_threshold=2.0 - request.min_similarity
+        )
+        
+        ids_scores = search_result['results']
+        pose_ids = [pid for pid, _ in ids_scores]
+
+        if not pose_ids:
+            return VectorSearchResponse(
+                poses=[], 
+                total=search_result['total'], 
+                query_time_ms=int((time.time() - start) * 1000),
+                service_available=True,
+                search_info={
+                    "message": "当前页无结果",
+                    "total_results": search_result['total'],
+                    "current_page": search_result['page'],
+                    "has_next_page": search_result['has_next']
+                }
+            )
+
+        # 查询数据库获取pose详情
+        result = db.execute(
+            text(
+                """
+                SELECT id, oss_url, thumbnail_url, title, description,
+                       scene_category, angle, shooting_tips, ai_tags,
+                       view_count, created_at
+                FROM poses
+                WHERE id IN :ids AND status = 'active'
+                """
+            ),
+            {"ids": tuple(pose_ids)},
+        ).fetchall()
+
+        pose_dict = {row[0]: {
+            "id": row[0],
+            "oss_url": row[1],
+            "thumbnail_url": row[2],
+            "title": row[3] or "",
+            "description": row[4] or "",
+            "scene_category": row[5],
+            "angle": row[6],
+            "shooting_tips": row[7],
+            "ai_tags": row[8],
+            "view_count": row[9] or 0,
+            "created_at": row[10].isoformat() if row[10] else None,
+        } for row in result}
+
+        poses = []
+        for pid, score in ids_scores:
+            data = pose_dict.get(pid)
+            if data:
+                poses.append({**data, "score": score})
+
+        query_time = int((time.time() - start) * 1000)
+        
+        return VectorSearchResponse(
+            poses=poses, 
+            total=search_result['total'], 
+            query_time_ms=query_time,
+            service_available=True,
+            search_info={
+                "found_results": len(poses),
+                "total_results": search_result['total'],
+                "current_page": search_result['page'],
+                "has_next_page": search_result['has_next'],
+                "search_method": "分页搜索",
+                "page_size": request.page_size
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"分页向量搜索失败: {e}")
+        raise HTTPException(status_code=500, detail=f"搜索失败: {str(e)}")

@@ -241,3 +241,184 @@ class EnhancedVectorSearchService:
         # 这里需要实现从数据库获取文本的逻辑
         # 目前返回占位符
         return f"pose_{pose_id}_text"
+    
+# 在现有的 EnhancedVectorSearchService 类中添加以下方法：
+
+def search_with_pagination(self, query: str, page: int = 1, page_size: int = 10, 
+                          similarity_threshold: float = 1.5) -> Dict:
+    """
+    分页向量搜索
+    
+    Args:
+        query: 搜索查询
+        page: 页码（从1开始）
+        page_size: 每页数量
+        similarity_threshold: 相似度阈值
+    
+    Returns:
+        {
+            'results': [(pose_id, similarity_score), ...],
+            'total': 总数量,
+            'page': 当前页,
+            'has_next': 是否有下一页
+        }
+    """
+    if not self.available:
+        return {'results': [], 'total': 0, 'page': page, 'has_next': False}
+    
+    try:
+        # 搜索更大的候选集
+        search_k = min(page * page_size * 5, 1000)  # 最多搜索1000个候选
+        
+        query_vec = self._embed(query)
+        if query_vec is None:
+            return {'results': [], 'total': 0, 'page': page, 'has_next': False}
+        
+        distances, indices = self.index.search(query_vec.reshape(1, -1), search_k)
+        
+        # 过滤和排序所有结果
+        all_results = []
+        for idx, dist in zip(indices[0], distances[0]):
+            if idx < 0 or str(idx) not in self.id_map:
+                continue
+                
+            # 应用相似度阈值过滤
+            if dist > similarity_threshold:
+                continue
+                
+            pose_id = self.id_map[str(idx)]
+            similarity = self._distance_to_similarity(dist)
+            all_results.append((pose_id, similarity))
+        
+        # 按相似度排序
+        all_results.sort(key=lambda x: x[1], reverse=True)
+        
+        # 分页处理
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        page_results = all_results[start_idx:end_idx]
+        
+        logger.info(f"分页搜索: 总数={len(all_results)}, 页码={page}, 页大小={page_size}")
+        
+        return {
+            'results': page_results,
+            'total': len(all_results),
+            'page': page,
+            'has_next': end_idx < len(all_results)
+        }
+        
+    except Exception as e:
+        logger.error(f"分页搜索失败: {e}")
+        return {'results': [], 'total': 0, 'page': page, 'has_next': False}
+
+def search_with_dynamic_threshold(self, query: str, target_count: int = 20, 
+                                 min_similarity: float = 0.3) -> List[Tuple[int, float]]:
+    """
+    动态阈值搜索，确保返回足够多的相关结果
+    
+    Args:
+        query: 搜索查询
+        target_count: 目标返回数量
+        min_similarity: 最低相似度要求
+    """
+    if not self.available:
+        return []
+    
+    try:
+        query_vec = self._embed(query)
+        if query_vec is None:
+            return []
+        
+        # 搜索更大的候选集
+        search_k = min(target_count * 10, 1000)
+        distances, indices = self.index.search(query_vec.reshape(1, -1), search_k)
+        
+        # 收集所有有效结果
+        valid_results = []
+        for idx, dist in zip(indices[0], distances[0]):
+            if idx < 0 or str(idx) not in self.id_map:
+                continue
+            
+            similarity = self._distance_to_similarity(dist)
+            if similarity >= min_similarity:
+                pose_id = self.id_map[str(idx)]
+                valid_results.append((pose_id, similarity, dist))
+        
+        if not valid_results:
+            return []
+        
+        # 按相似度排序
+        valid_results.sort(key=lambda x: x[1], reverse=True)
+        
+        # 动态确定阈值
+        if len(valid_results) >= target_count:
+            # 如果结果够多，使用更严格的阈值
+            threshold_similarity = valid_results[target_count - 1][1]
+            # 确保阈值不会过于严格
+            threshold_similarity = max(threshold_similarity, min_similarity)
+        else:
+            # 如果结果不够，使用最低阈值
+            threshold_similarity = min_similarity
+        
+        # 应用动态阈值
+        final_results = [
+            (pose_id, similarity) 
+            for pose_id, similarity, _ in valid_results 
+            if similarity >= threshold_similarity
+        ]
+        
+        logger.info(f"动态阈值搜索: 候选={len(valid_results)}, 最终={len(final_results)}, 阈值={threshold_similarity:.3f}")
+        
+        return final_results[:target_count]
+        
+    except Exception as e:
+        logger.error(f"动态阈值搜索失败: {e}")
+        return []
+
+def multi_tier_search(self, query: str, target_count: int = 20) -> List[Tuple[int, float]]:
+    """
+    多层次搜索：先严格后宽松
+    """
+    # 第一层：严格搜索
+    strict_results = self.search(query, top_k=target_count)
+    
+    if len(strict_results) >= target_count:
+        logger.info(f"严格搜索满足需求: {len(strict_results)} 个结果")
+        return strict_results[:target_count]
+    
+    # 第二层：使用动态阈值搜索
+    dynamic_results = self.search_with_dynamic_threshold(
+        query, target_count=target_count, min_similarity=0.2
+    )
+    
+    if len(dynamic_results) >= target_count:
+        logger.info(f"动态搜索满足需求: {len(dynamic_results)} 个结果")
+        return dynamic_results[:target_count]
+    
+    # 第三层：最宽松搜索
+    try:
+        query_vec = self._embed(query)
+        if query_vec is None:
+            return dynamic_results
+        
+        search_k = min(target_count * 15, 1500)
+        distances, indices = self.index.search(query_vec.reshape(1, -1), search_k)
+        
+        loose_results = []
+        for idx, dist in zip(indices[0], distances[0]):
+            if idx < 0 or str(idx) not in self.id_map:
+                continue
+            
+            similarity = self._distance_to_similarity(dist)
+            if similarity >= 0.1:  # 非常宽松的阈值
+                pose_id = self.id_map[str(idx)]
+                loose_results.append((pose_id, similarity))
+        
+        loose_results.sort(key=lambda x: x[1], reverse=True)
+        
+        logger.info(f"宽松搜索完成: {len(loose_results)} 个结果")
+        return loose_results[:target_count]
+        
+    except Exception as e:
+        logger.error(f"宽松搜索失败: {e}")
+        return dynamic_results

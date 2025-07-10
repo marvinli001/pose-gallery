@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { searchVectorPaginated, searchVectorEnhanced } from '@/lib/api';
 
 interface SearchSuggestion {
   text: string;
@@ -22,15 +23,16 @@ interface AIPoseResult {
   id: number;
   oss_url: string;
   thumbnail_url?: string;
-  title: string;
-  description: string;
-  scene_category: string;
-  angle: string;
-  ai_tags: string;
-  view_count: number;
-  created_at: string;
+  title?: string;
+  description?: string;
+  scene_category?: string;
+  angle?: string;
+  ai_tags?: string;
+  view_count?: number;
+  created_at?: string;
   ai_relevance_explanation?: string;
   shooting_tips?: string;
+  score?: number;
 }
 
 
@@ -58,6 +60,7 @@ const EnhancedSearchBar: React.FC<Props> = ({
   const [isAiDatabaseLoading, setIsAiDatabaseLoading] = useState(false);
   const [isVectorLoading, setIsVectorLoading] = useState(false);
   const [useVectorSearch, setUseVectorSearch] = useState(false);
+  const [vectorSearchMode, setVectorSearchMode] = useState<'paginated' | 'dynamic'>('dynamic');
   
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
@@ -180,6 +183,62 @@ const EnhancedSearchBar: React.FC<Props> = ({
     }
   };
 
+  // 分页向量搜索函数
+  const handlePaginatedSearch = async (query: string, page: number = 1) => {
+    try {
+      const result = await searchVectorPaginated({
+        query,
+        search_mode: 'paginated',
+        page_size: 20,
+        min_similarity: 0.3
+      });
+
+      setSearchInfo({
+        original_query: query,
+        ai_explanation: result.service_available 
+          ? `使用向量相似度匹配找到最相关的姿势\n找到 ${result.search_info?.found_results || 0} 个结果`
+          : '向量搜索服务不可用，已为您执行普通搜索',
+        search_intent: result.service_available ? '向量匹配' : '服务降级',
+        query_time: result.query_time_ms,
+        expanded_queries: [],
+        suggestions: []
+      });
+
+      return result;
+    } catch (error) {
+      console.error('分页向量搜索失败:', error);
+      throw error;
+    }
+  };
+
+  // 动态向量搜索函数  
+  const handleDynamicSearch = async (query: string) => {
+    try {
+      const result = await searchVectorEnhanced({
+        query,
+        search_mode: 'dynamic',
+        target_count: 30,
+        min_similarity: 0.3
+      });
+
+      setSearchInfo({
+        original_query: query,
+        ai_explanation: result.service_available
+          ? `使用向量相似度匹配找到最相关的姿势\n找到 ${result.search_info?.found_results || 0} 个结果`
+          : '向量搜索服务不可用，已为您执行普通搜索',
+        search_intent: result.service_available ? '向量匹配' : '服务降级',
+        query_time: result.query_time_ms,
+        expanded_queries: [],
+        suggestions: []
+      });
+
+      return result;
+    } catch (error) {
+      console.error('动态向量搜索失败:', error);
+      throw error;
+    }
+  };
+
   const handleVectorSearch = async () => {
     if (!query.trim()) {
       if (onResetSearch) {
@@ -192,92 +251,21 @@ const EnhancedSearchBar: React.FC<Props> = ({
     setShowSuggestions(false);
 
     try {
-      console.log('开始向量搜索:', query);
+      console.log('开始向量搜索:', query, '模式:', vectorSearchMode);
       
-      // 首先检查向量搜索服务状态
-      const statusResponse = await fetch('/api/search/vector/status');
-      let serviceAvailable = true;
-      
-      if (statusResponse.ok) {
-        const statusData = await statusResponse.json();
-        serviceAvailable = statusData.available;
-        console.log('向量搜索服务状态:', statusData);
-      }
-      
-      if (!serviceAvailable) {
-        console.warn('向量搜索服务不可用，回退到普通搜索');
-        setSearchInfo({
-          original_query: query,
-          ai_explanation: '向量搜索服务暂时不可用，已为您执行普通搜索',
-          search_intent: '服务降级',
-          query_time: 0,
-          expanded_queries: [],
-          suggestions: [],
-        });
-        onSearch(query);
-        return;
-      }
-      
-      const response = await fetch('/api/search/vector', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: query.trim(),
-          top_k: 20,
-          use_adaptive: true,  // 使用自适应搜索
-        }),
-      });
+      // 根据选择的模式调用不同的API
+      const data = vectorSearchMode === 'paginated' 
+        ? await handlePaginatedSearch(query.trim())
+        : await handleDynamicSearch(query.trim());
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log('向量搜索响应:', data);
-
-        // 构建搜索信息，包含质量指标
-        let explanation = '使用向量相似度匹配找到最相关的姿势';
-        
-        if (data.search_info) {
-          const info = data.search_info;
-          explanation += `\n找到 ${info.found_results} 个结果`;
-          
-          if (info.avg_similarity) {
-            explanation += `，平均相似度: ${info.avg_similarity}`;
-          }
-          
-          if (info.quality_warning) {
-            explanation += `\n⚠️ ${info.quality_warning}`;
-          }
-          
-          if (info.similarity_range) {
-            explanation += `\n相似度范围: ${info.similarity_range}`;
-          }
-        }
-
-        setSearchInfo({
-          original_query: query,
-          ai_explanation: data.service_available 
-            ? explanation
-            : '向量搜索服务不可用，已为您执行普通搜索',
-          search_intent: data.service_available ? '向量匹配' : '服务降级',
-          query_time: data.query_time_ms,
-          expanded_queries: [],
-          suggestions: [],
-        });
-
-        if (data.poses && Array.isArray(data.poses) && data.poses.length > 0) {
-          if (onAISearchResult) {
-            onAISearchResult(data.poses);
-          } else {
-            onSearch(query);
-          }
+      if (data.poses && Array.isArray(data.poses) && data.poses.length > 0) {
+        if (onAISearchResult) {
+          onAISearchResult(data.poses);
         } else {
-          console.log('向量搜索无结果，执行普通搜索');
           onSearch(query);
         }
       } else {
-        const errorText = await response.text();
-        console.error('向量搜索API响应错误:', response.status, errorText);
+        console.log('向量搜索无结果，执行普通搜索');
         onSearch(query);
       }
     } catch (error) {
@@ -418,15 +406,31 @@ return (
           )}
         </button>
       </div>
-      <div className="flex items-center mt-2 text-sm">
-        <input
-          id="vector-toggle"
-          type="checkbox"
-          className="mr-2"
-          checked={useVectorSearch}
-          onChange={(e) => setUseVectorSearch(e.target.checked)}
-        />
-        <label htmlFor="vector-toggle">使用向量搜索</label>
+      <div className="flex items-center mt-2 text-sm space-x-4">
+        <div className="flex items-center">
+          <input
+            id="vector-toggle"
+            type="checkbox"
+            className="mr-2"
+            checked={useVectorSearch}
+            onChange={(e) => setUseVectorSearch(e.target.checked)}
+          />
+          <label htmlFor="vector-toggle">使用向量搜索</label>
+        </div>
+        
+        {useVectorSearch && (
+          <div className="flex items-center">
+            <span className="mr-2 text-gray-600">模式:</span>
+            <select
+              value={vectorSearchMode}
+              onChange={(e) => setVectorSearchMode(e.target.value as 'paginated' | 'dynamic')}
+              className="px-2 py-1 border rounded text-sm"
+            >
+              <option value="dynamic">动态搜索</option>
+              <option value="paginated">分页搜索</option>
+            </select>
+          </div>
+        )}
       </div>
     </form>
 

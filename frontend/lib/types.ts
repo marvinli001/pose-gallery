@@ -25,3 +25,18 @@ export interface Category {
   name: string;
   count: number;
 }
+// 在现有的 types.ts 中添加新的搜索相关类型
+export interface EnhancedVectorSearchParams {
+  query: string;
+  searchMode: 'dynamic' | 'paginated' | 'multi_tier';
+  maxResults: number;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PaginationInfo {
+  currentPage: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  totalResults: number;
+}
