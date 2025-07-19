@@ -148,55 +148,6 @@ const EnhancedSearchBar: React.FC<Props> = ({
       setIsAiLoading(false);
     }
   };
-
-  const handleAiDatabaseSearch = async () => {
-    if (!query.trim()) return;
-
-    setIsAiLoading(true);
-    setShowSuggestions(false);
-    
-    try {
-        // 修复：调用正确的API路径
-        const response = await fetch('/api/search/ai-database', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ 
-                query: query.trim(),
-                max_results: 20 
-            })
-        });
-        
-        if (response.ok) {
-            const data = await response.json();
-            
-            // 显示AI搜索结果和解释
-            setSearchInfo({
-                original_query: query,
-                ai_explanation: data.ai_explanation,
-                search_intent: data.search_intent?.intent_type,
-                query_time: data.query_time_ms,
-                expanded_queries: [],
-                suggestions: []
-            });
-            
-            // 使用AI搜索结果
-            if (onAISearchResult) {
-                onAISearchResult(data.poses);
-            } else {
-                // 如果没有AI搜索结果回调，回退到普通搜索
-                onSearch(query);
-            }
-        }
-    } catch (error) {
-        console.error('AI数据库搜索失败:', error);
-        // 回退到普通搜索
-        onSearch(query);
-    } finally {
-        setIsAiLoading(false);
-    }
-  };
   
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!showSuggestions || suggestions.length === 0) return;
@@ -290,23 +241,7 @@ const EnhancedSearchBar: React.FC<Props> = ({
             className="w-full px-4 py-3 pr-32 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
             disabled={isLoading || isAiLoading}
           />
-          
-          {/* AI数据库搜索按钮 */}
-          <button
-            type="button"
-            onClick={handleAiDatabaseSearch}
-            disabled={isLoading || isAiLoading}
-            className="absolute right-24 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-green-600 disabled:opacity-50 transition-colors"
-            title="AI数据库搜索"
-          >
-            {isAiLoading ? (
-              <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
-            ) : (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 0v10c0 2.21-3.582 4-8 4s-8-1.79-8-4V7m8-4c4.418 0 8 1.79 8 4s-3.582 4-8 4-8-1.79-8-4" />
-              </svg>
-            )}
-          </button>
+        
 
           {/* AI 搜索按钮 */}
           <button

@@ -57,9 +57,7 @@ const EnhancedSearchBar: React.FC<Props> = ({
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [searchInfo, setSearchInfo] = useState<SearchInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isAiDatabaseLoading, setIsAiDatabaseLoading] = useState(false);
   const [isVectorLoading, setIsVectorLoading] = useState(false);
-  const [useVectorSearch, setUseVectorSearch] = useState(false);
   const [vectorSearchMode, setVectorSearchMode] = useState<'paginated' | 'dynamic'>('dynamic');
   
   const inputRef = useRef<HTMLInputElement>(null);
@@ -114,72 +112,6 @@ const EnhancedSearchBar: React.FC<Props> = ({
       onSearch(query);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  // AI数据库搜索功能
-  const handleAiDatabaseSearch = async () => {
-    if (!query.trim()) {
-      if (onResetSearch) {
-        onResetSearch();
-      }
-      return;
-    }
-
-    setIsAiDatabaseLoading(true);
-    setShowSuggestions(false);
-    
-    try {
-      console.log('开始AI数据库搜索:', query);
-      
-      const response = await fetch('/api/search/ai-database', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          query: query.trim(),
-          max_results: 20 
-        })
-      });
-        
-      if (response.ok) {
-        const data = await response.json();
-        console.log('AI数据库搜索响应:', data);
-        
-        setSearchInfo({
-          original_query: query,
-          ai_explanation: data.ai_explanation || '使用AI分析找到最相关的拍照姿势',
-          search_intent: data.search_intent?.intent_type || '智能匹配',
-          query_time: data.query_time_ms,
-          expanded_queries: [],
-          suggestions: []
-        });
-          
-        if (data.poses && Array.isArray(data.poses) && data.poses.length > 0) {
-          console.log('调用AI搜索结果回调，姿势数量:', data.poses.length);
-          if (onAISearchResult) {
-            onAISearchResult(data.poses);
-          } else {
-            console.warn('onAISearchResult回调未定义，执行普通搜索');
-            onSearch(query);
-          }
-        } else {
-          console.warn('AI搜索结果为空，执行普通搜索');
-          const fallbackQuery = data.suggested_query || data.corrected_query || query;
-          setQuery(fallbackQuery);
-          onSearch(fallbackQuery);
-        }
-      } else {
-        const errorText = await response.text();
-        console.error('AI数据库搜索API响应错误:', response.status, errorText);
-        onSearch(query);
-      }
-    } catch (error) {
-      console.error('AI数据库搜索失败:', error);
-      onSearch(query);
-    } finally {
-      setIsAiDatabaseLoading(false);
     }
   };
 
@@ -366,24 +298,18 @@ return (
           onKeyDown={handleKeyDown}
           placeholder="智能搜索：「俏皮可爱」「咖啡厅拍照」「坐姿写真」..."
           className="w-full px-4 py-3 pr-20 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
-          disabled={isLoading || isAiDatabaseLoading}
+          disabled={isLoading}
         />
         
         {/* AI数据库/向量 搜索按钮 */}
         <button
           type="button"
-          onClick={() => {
-            if (useVectorSearch) {
-              handleVectorSearch();
-            } else {
-              handleAiDatabaseSearch();
-            }
-          }}
-          disabled={isLoading || isAiDatabaseLoading || isVectorLoading}
+          onClick={handleVectorSearch}
+          disabled={isLoading || isVectorLoading}
           className="absolute right-12 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-purple-600 disabled:opacity-50 transition-colors flex items-center justify-center w-8 h-8"
-          title="AI智能搜索"
+          title="AI向量搜索"
         >
-          {isAiDatabaseLoading || isVectorLoading ? (
+          {isVectorLoading ? (
             <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
           ) : (
             <span className="text-lg">✨</span>
@@ -393,7 +319,7 @@ return (
         {/* 普通搜索按钮 */}
         <button
           type="submit"
-          disabled={isLoading || isAiDatabaseLoading || isVectorLoading}
+          disabled={isLoading || isVectorLoading}
           className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-blue-600 disabled:opacity-50 transition-colors flex items-center justify-center w-8 h-8"
           title="普通搜索"
         >
@@ -406,33 +332,9 @@ return (
           )}
         </button>
       </div>
-      <div className="flex items-center mt-2 text-sm space-x-4">
-        <div className="flex items-center">
-          <input
-            id="vector-toggle"
-            type="checkbox"
-            className="mr-2"
-            checked={useVectorSearch}
-            onChange={(e) => setUseVectorSearch(e.target.checked)}
-          />
-          <label htmlFor="vector-toggle">使用向量搜索</label>
-        </div>
-        
-        {useVectorSearch && (
-          <div className="flex items-center">
-            <span className="mr-2 text-gray-600">模式:</span>
-            <select
-              value={vectorSearchMode}
-              onChange={(e) => setVectorSearchMode(e.target.value as 'paginated' | 'dynamic')}
-              className="px-2 py-1 border rounded text-sm"
-            >
-              <option value="dynamic">动态搜索</option>
-              <option value="paginated">分页搜索</option>
-            </select>
-          </div>
-        )}
-      </div>
     </form>
+
+    
 
       {/* 搜索建议下拉框 */}
       {showSuggestions && suggestions.length > 0 && (
@@ -460,6 +362,19 @@ return (
           ))}
         </div>
       )}
+
+      {/* 向量搜索模式选择 (替换原来的空行区域) */}
+      <div className="flex items-center mt-2 text-sm">
+        <span className="mr-2 text-gray-600">问查找模式:</span>
+        <select
+          value={vectorSearchMode}
+          onChange={(e) => setVectorSearchMode(e.target.value as 'paginated' | 'dynamic')}
+          className="px-2 py-1 border rounded text-sm"
+        >
+          <option value="dynamic">动态搜索</option>
+          <option value="paginated">分页搜索</option>
+        </select>
+      </div>
 
       {/* 搜索信息展示 */}
       {showSearchInfo && searchInfo && (
