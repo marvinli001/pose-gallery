@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { searchVectorPaginated, searchVectorEnhanced } from '@/lib/api';
+import { searchVectorPaginated, searchVectorEnhanced, checkVectorSearchStatus } from '@/lib/api';
 
 interface SearchSuggestion {
   text: string;
@@ -59,6 +59,14 @@ const EnhancedSearchBar: React.FC<Props> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isVectorLoading, setIsVectorLoading] = useState(false);
   const [vectorSearchMode, setVectorSearchMode] = useState<'paginated' | 'dynamic'>('dynamic');
+  const [vectorServiceStatus, setVectorServiceStatus] = useState<{
+    available: boolean;
+    message: string;
+    lastChecked?: Date;
+  }>({
+    available: true,
+    message: '未检查'
+  });
   
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
@@ -79,6 +87,31 @@ const EnhancedSearchBar: React.FC<Props> = ({
     return commonSuggestions
       .filter(s => s.text.includes(prefix))
       .slice(0, 5);
+  };
+
+  // 检查向量搜索服务状态
+  const checkServiceStatus = async () => {
+    try {
+      console.log('检查向量搜索服务状态...');
+      const status = await checkVectorSearchStatus();
+      console.log('向量搜索服务状态:', status);
+      
+      setVectorServiceStatus({
+        available: status.available,
+        message: status.message,
+        lastChecked: new Date()
+      });
+      
+      return status;
+    } catch (error) {
+      console.error('服务状态检查失败:', error);
+      setVectorServiceStatus({
+        available: false,
+        message: '状态检查失败',
+        lastChecked: new Date()
+      });
+      return { available: false, message: '状态检查失败' };
+    }
   };
 
   // 当输入变化时显示建议
@@ -118,6 +151,8 @@ const EnhancedSearchBar: React.FC<Props> = ({
   // 分页向量搜索函数
   const handlePaginatedSearch = async (query: string) => {
     try {
+      console.log('开始分页向量搜索:', { query, timestamp: new Date().toISOString() });
+      
       const result = await searchVectorPaginated({
         query,
         search_mode: 'paginated',
@@ -125,11 +160,19 @@ const EnhancedSearchBar: React.FC<Props> = ({
         min_similarity: 0.3
       });
 
+      console.log('分页向量搜索结果:', {
+        service_available: result.service_available,
+        poses_count: result.poses?.length || 0,
+        total: result.total,
+        query_time_ms: result.query_time_ms,
+        search_info: result.search_info
+      });
+
       setSearchInfo({
         original_query: query,
         ai_explanation: result.service_available 
-          ? `使用向量相似度匹配找到最相关的姿势\n找到 ${result.search_info?.found_results || 0} 个结果`
-          : '向量搜索服务不可用，已为您执行普通搜索',
+          ? `使用向量相似度匹配找到最相关的姿势\n找到 ${result.search_info?.found_results || result.poses?.length || 0} 个结果`
+          : `向量搜索服务不可用，已为您执行普通搜索\n错误信息: ${result.error || '服务连接失败'}`,
         search_intent: result.service_available ? '向量匹配' : '服务降级',
         query_time: result.query_time_ms,
         expanded_queries: [],
@@ -138,7 +181,11 @@ const EnhancedSearchBar: React.FC<Props> = ({
 
       return result;
     } catch (error) {
-      console.error('分页向量搜索失败:', error);
+      console.error('分页向量搜索失败:', {
+        error: error instanceof Error ? error.message : String(error),
+        query,
+        timestamp: new Date().toISOString()
+      });
       throw error;
     }
   };
@@ -146,6 +193,8 @@ const EnhancedSearchBar: React.FC<Props> = ({
   // 动态向量搜索函数  
   const handleDynamicSearch = async (query: string) => {
     try {
+      console.log('开始动态向量搜索:', { query, timestamp: new Date().toISOString() });
+      
       const result = await searchVectorEnhanced({
         query,
         search_mode: 'dynamic',
@@ -153,11 +202,19 @@ const EnhancedSearchBar: React.FC<Props> = ({
         min_similarity: 0.3
       });
 
+      console.log('动态向量搜索结果:', {
+        service_available: result.service_available,
+        poses_count: result.poses?.length || 0,
+        total: result.total,
+        query_time_ms: result.query_time_ms,
+        search_info: result.search_info
+      });
+
       setSearchInfo({
         original_query: query,
         ai_explanation: result.service_available
-          ? `使用向量相似度匹配找到最相关的姿势\n找到 ${result.search_info?.found_results || 0} 个结果`
-          : '向量搜索服务不可用，已为您执行普通搜索',
+          ? `使用向量相似度匹配找到最相关的姿势\n找到 ${result.search_info?.found_results || result.poses?.length || 0} 个结果`
+          : `向量搜索服务不可用，已为您执行普通搜索\n错误信息: ${result.error || '服务连接失败'}`,
         search_intent: result.service_available ? '向量匹配' : '服务降级',
         query_time: result.query_time_ms,
         expanded_queries: [],
@@ -166,7 +223,11 @@ const EnhancedSearchBar: React.FC<Props> = ({
 
       return result;
     } catch (error) {
-      console.error('动态向量搜索失败:', error);
+      console.error('动态向量搜索失败:', {
+        error: error instanceof Error ? error.message : String(error),
+        query,
+        timestamp: new Date().toISOString()
+      });
       throw error;
     }
   };
@@ -183,25 +244,72 @@ const EnhancedSearchBar: React.FC<Props> = ({
     setShowSuggestions(false);
 
     try {
-      console.log('开始向量搜索:', query, '模式:', vectorSearchMode);
+      console.log('开始向量搜索:', { 
+        query: query.trim(), 
+        mode: vectorSearchMode, 
+        timestamp: new Date().toISOString() 
+      });
+      
+      // 先检查服务状态
+      const serviceStatus = await checkServiceStatus();
+      
+      if (!serviceStatus.available) {
+        console.log('向量搜索服务不可用，直接执行普通搜索');
+        setSearchInfo({
+          original_query: query.trim(),
+          ai_explanation: `向量搜索服务不可用: ${serviceStatus.message}`,
+          search_intent: '服务不可用，已回退到普通搜索',
+          query_time: 0,
+          expanded_queries: [],
+          suggestions: []
+        });
+        onSearch(query);
+        return;
+      }
       
       // 根据选择的模式调用不同的API
       const data = vectorSearchMode === 'paginated' 
         ? await handlePaginatedSearch(query.trim())
         : await handleDynamicSearch(query.trim());
 
+      console.log('向量搜索完成:', {
+        service_available: data.service_available,
+        poses_found: data.poses?.length || 0,
+        has_results: data.poses && Array.isArray(data.poses) && data.poses.length > 0
+      });
+
       if (data.poses && Array.isArray(data.poses) && data.poses.length > 0) {
+        console.log('向量搜索成功，返回结果给父组件');
         if (onAISearchResult) {
           onAISearchResult(data.poses);
         } else {
           onSearch(query);
         }
       } else {
-        console.log('向量搜索无结果，执行普通搜索');
+        console.log('向量搜索无结果，执行普通搜索:', {
+          service_available: data.service_available,
+          error: data.error
+        });
         onSearch(query);
       }
     } catch (error) {
-      console.error('向量搜索失败:', error);
+      console.error('向量搜索失败，回退到普通搜索:', {
+        error: error instanceof Error ? error.message : String(error),
+        query: query.trim(),
+        mode: vectorSearchMode,
+        timestamp: new Date().toISOString()
+      });
+      
+      // 设置错误信息显示
+      setSearchInfo({
+        original_query: query.trim(),
+        ai_explanation: `向量搜索失败: ${error instanceof Error ? error.message : String(error)}`,
+        search_intent: '搜索失败，已回退到普通搜索',
+        query_time: 0,
+        expanded_queries: [],
+        suggestions: []
+      });
+      
       onSearch(query);
     } finally {
       setIsVectorLoading(false);
@@ -363,17 +471,40 @@ return (
         </div>
       )}
 
-      {/* 向量搜索模式选择 (替换原来的空行区域) */}
-      <div className="flex items-center mt-2 text-sm">
-        <span className="mr-2 text-gray-600">问查找模式:</span>
-        <select
-          value={vectorSearchMode}
-          onChange={(e) => setVectorSearchMode(e.target.value as 'paginated' | 'dynamic')}
-          className="px-2 py-1 border rounded text-sm"
-        >
-          <option value="dynamic">动态搜索</option>
-          <option value="paginated">分页搜索</option>
-        </select>
+      {/* 向量搜索模式选择和服务状态 */}
+      <div className="flex items-center justify-between mt-2 text-sm">
+        <div className="flex items-center">
+          <span className="mr-2 text-gray-600">向量搜索模式:</span>
+          <select
+            value={vectorSearchMode}
+            onChange={(e) => setVectorSearchMode(e.target.value as 'paginated' | 'dynamic')}
+            className="px-2 py-1 border rounded text-sm"
+          >
+            <option value="dynamic">动态搜索</option>
+            <option value="paginated">分页搜索</option>
+          </select>
+        </div>
+        
+        <div className="flex items-center">
+          <span className="mr-2 text-gray-600">服务状态:</span>
+          <div className={`flex items-center text-xs px-2 py-1 rounded ${
+            vectorServiceStatus.available 
+              ? 'bg-green-100 text-green-700' 
+              : 'bg-red-100 text-red-700'
+          }`}>
+            <span className={`w-2 h-2 rounded-full mr-1 ${
+              vectorServiceStatus.available ? 'bg-green-500' : 'bg-red-500'
+            }`}></span>
+            {vectorServiceStatus.message}
+          </div>
+          <button
+            onClick={checkServiceStatus}
+            className="ml-2 text-blue-600 hover:text-blue-800 text-xs"
+            title="刷新状态"
+          >
+            🔄
+          </button>
+        </div>
       </div>
 
       {/* 搜索信息展示 */}

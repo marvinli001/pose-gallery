@@ -64,6 +64,8 @@ export interface VectorSearchResponse {
   total: number;
   query_time_ms: number;
   service_available: boolean;
+  error?: string;
+  message?: string;
   search_info?: Record<string, unknown>; // 修复：使用 unknown 替代 any
 }
 
@@ -95,4 +97,42 @@ export const searchVectorEnhanced = async (params: VectorSearchRequest): Promise
   }
   
   return response.json();
+};
+
+// 新增向量搜索服务状态检查
+export const checkVectorSearchStatus = async (): Promise<{
+  available: boolean;
+  message: string;
+  version?: string;
+}> => {
+  try {
+    const response = await fetch('/api/search/vector', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        query: 'test', 
+        top_k: 1,
+        min_similarity: 0.1 
+      })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        available: data.service_available || false,
+        message: data.service_available ? '向量搜索服务正常' : '向量搜索服务不可用',
+        version: data.version
+      };
+    } else {
+      return {
+        available: false,
+        message: `服务检查失败: ${response.statusText}`
+      };
+    }
+  } catch (error) {
+    return {
+      available: false,
+      message: `服务连接失败: ${error instanceof Error ? error.message : '未知错误'}`
+    };
+  }
 };
