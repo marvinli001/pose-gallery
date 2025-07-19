@@ -20,25 +20,26 @@ interface SearchInfo {
 }
 
 // 定义AI搜索结果类型
-interface AIPoseResult {
-  id: number;
-  oss_url: string;
-  thumbnail_url?: string;
-  title: string;
-  description: string;
-  scene_category: string;
-  angle: string;
-  view_count: number;
-  created_at: string;
-  ai_relevance_explanation?: string;
-}
+// 删除这个未使用的接口定义
+// interface AIPoseResult {
+//   id: number;
+//   oss_url: string;
+//   thumbnail_url?: string;
+//   title: string;
+//   description: string;
+//   scene_category: string;
+//   angle: string;
+//   view_count: number;
+//   created_at: string;
+//   ai_relevance_explanation?: string;
+// }
 
 interface Props {
   onSearch: (query: string) => void;
   // 移除未使用的 onAISearchResult 参数
   initialValue?: string;
   showSearchInfo?: boolean;
-}
+} 
 
 const EnhancedSearchBar: React.FC<Props> = ({ 
   onSearch, 
