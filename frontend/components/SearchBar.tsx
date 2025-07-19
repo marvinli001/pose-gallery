@@ -35,14 +35,14 @@ interface AIPoseResult {
 
 interface Props {
   onSearch: (query: string) => void;
-  onAISearchResult?: (poses: AIPoseResult[]) => void;  // 修复类型定义
+  // 移除未使用的 onAISearchResult 参数
   initialValue?: string;
   showSearchInfo?: boolean;
 }
 
 const EnhancedSearchBar: React.FC<Props> = ({ 
   onSearch, 
-  onAISearchResult,
+  // 移除 onAISearchResult
   initialValue = '', 
   showSearchInfo = false 
 }) => {
