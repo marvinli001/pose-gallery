@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { searchVectorPaginated, searchVectorEnhanced, checkVectorSearchStatus } from '@/lib/api';
+import { searchVectorEnhanced } from '../lib/api';
 
 interface SearchSuggestion {
   text: string;
@@ -58,15 +58,6 @@ const EnhancedSearchBar: React.FC<Props> = ({
   const [searchInfo, setSearchInfo] = useState<SearchInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isVectorLoading, setIsVectorLoading] = useState(false);
-// const [vectorSearchMode, setVectorSearchMode] = useState<'paginated' | 'dynamic'>('dynamic');
-// const [vectorServiceStatus, setVectorServiceStatus] = useState<{
-//   available: boolean;
-//   message: string;
-//   lastChecked?: Date;
-// }>({
-//   available: true,
-//   message: '未检查'
-// });
   
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
