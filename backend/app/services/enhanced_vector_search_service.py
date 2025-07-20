@@ -43,7 +43,7 @@ class EnhancedVectorSearchService:
         return self.available
     
     def search(self, query: str, top_k: int = 10) -> List[Tuple[int, float]]:
-        """基础向量搜索"""
+        """基础向量搜索 - 使用更宽松的默认设置"""
         if not self.available:
             return []
         
@@ -53,8 +53,9 @@ class EnhancedVectorSearchService:
             if query_vec is None:
                 return []
             
-            # 向量搜索
-            distances, indices = self.index.search(query_vec.reshape(1, -1), top_k)
+            # 向量搜索 - 搜索更多候选
+            search_k = min(top_k * 10, 500)
+            distances, indices = self.index.search(query_vec.reshape(1, -1), search_k)
             
             results = []
             for idx, dist in zip(indices[0], distances[0]):
@@ -63,9 +64,20 @@ class EnhancedVectorSearchService:
                 
                 pose_id = self.id_map[str(idx)]
                 similarity = self._distance_to_similarity(dist)
-                results.append((pose_id, similarity))
+                
+                # 只过滤掉完全无关的结果
+                if similarity >= 0.01:
+                    results.append((pose_id, similarity))
             
-            return results
+            # 按相似度排序并返回top_k
+            results.sort(key=lambda x: x[1], reverse=True)
+            final_results = results[:top_k]
+            
+            logger.info(f"基础向量搜索完成: 查询='{query}', 找到={len(final_results)}个结果")
+            if final_results:
+                logger.info(f"相似度范围: {final_results[-1][1]:.3f} - {final_results[0][1]:.3f}")
+            
+            return final_results
             
         except Exception as e:
             logger.error(f"基础向量搜索失败: {e}")
@@ -263,14 +275,9 @@ class EnhancedVectorSearchService:
             return {'results': [], 'total': 0, 'page': page, 'has_next': False}
 
     def search_with_dynamic_threshold(self, query: str, target_count: int = 20, 
-                                     min_similarity: float = 0.3) -> List[Tuple[int, float]]:
+                                     min_similarity: float = 0.1) -> List[Tuple[int, float]]:
         """
         动态阈值搜索，确保返回足够多的相关结果
-        
-        Args:
-            query: 搜索查询
-            target_count: 目标返回数量
-            min_similarity: 最低相似度要求
         """
         if not self.available:
             return []
@@ -281,35 +288,35 @@ class EnhancedVectorSearchService:
                 return []
             
             # 搜索更大的候选集
-            search_k = min(target_count * 10, 1000)
+            search_k = min(target_count * 20, 2000)
             distances, indices = self.index.search(query_vec.reshape(1, -1), search_k)
             
-            # 收集所有有效结果
+            # 收集所有有效结果，使用更宽松的过滤条件
             valid_results = []
             for idx, dist in zip(indices[0], distances[0]):
                 if idx < 0 or str(idx) not in self.id_map:
                     continue
                 
                 similarity = self._distance_to_similarity(dist)
-                if similarity >= min_similarity:
+                # 只过滤掉完全不相关的结果
+                if similarity >= 0.01:  # 非常宽松的阈值
                     pose_id = self.id_map[str(idx)]
                     valid_results.append((pose_id, similarity, dist))
             
             if not valid_results:
+                logger.warning(f"动态阈值搜索未找到任何结果，查询: {query}")
                 return []
             
             # 按相似度排序
             valid_results.sort(key=lambda x: x[1], reverse=True)
             
-            # 动态确定阈值
+            # 动态确定阈值 - 更宽松的策略
             if len(valid_results) >= target_count:
-                # 如果结果够多，使用更严格的阈值
-                threshold_similarity = valid_results[target_count - 1][1]
-                # 确保阈值不会过于严格
-                threshold_similarity = max(threshold_similarity, min_similarity)
+                # 取目标数量的80%作为阈值参考点，确保有足够结果
+                threshold_pos = min(int(target_count * 1.5), len(valid_results) - 1)
+                threshold_similarity = max(valid_results[threshold_pos][1], 0.01)
             else:
-                # 如果结果不够，使用最低阈值
-                threshold_similarity = min_similarity
+                threshold_similarity = 0.01
             
             # 应用动态阈值
             final_results = [
@@ -318,7 +325,7 @@ class EnhancedVectorSearchService:
                 if similarity >= threshold_similarity
             ]
             
-            logger.info(f"动态阈值搜索: 候选={len(valid_results)}, 最终={len(final_results)}, 阈值={threshold_similarity:.3f}")
+            logger.info(f"动态阈值搜索完成: 候选={len(valid_results)}, 最终={len(final_results)}, 阈值={threshold_similarity:.3f}")
             
             return final_results[:target_count]
             

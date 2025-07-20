@@ -202,7 +202,7 @@ async def enhanced_vector_search(
     try:
         start = time.time()
         
-        # 第一步：查询分析和优化
+        # 查询分析和优化
         enhanced_query = request.query
         query_analysis = {}
         
@@ -214,77 +214,54 @@ async def enhanced_vector_search(
             except Exception as e:
                 logger.warning(f"查询分析失败，使用原始查询: {e}")
         
-        # 第二步：根据搜索模式执行搜索
+        # 多重搜索策略 - 降级搜索
         ids_scores = []
         search_method = "标准向量搜索"
         
-        if request.search_mode == "multi_stage":
-            # 多阶段搜索
-            ids_scores = enhanced_service.multi_stage_search(
-                query=enhanced_query,
-                final_k=request.top_k,
-                stage1_k=min(100, request.top_k * 5),
-                min_similarity=request.min_similarity
-            )
-            search_method = "多阶段向量搜索"
-
-        elif request.search_mode == "dynamic":
-            # 动态阈值搜索
+        # 策略1: 尝试用户指定的搜索模式
+        if request.search_mode == "dynamic":
             ids_scores = enhanced_service.search_with_dynamic_threshold(
                 query=enhanced_query,
                 target_count=request.target_count,
-                min_similarity=request.min_similarity
+                min_similarity=0.01
             )
             search_method = "动态阈值搜索"
-            
-        elif request.search_mode == "paginated":
-            # 分页搜索
-            search_result = enhanced_service.search_with_pagination(
-                query=enhanced_query,
-                page=request.page,
-                page_size=request.page_size,
-                similarity_threshold=2.0 - request.min_similarity  # 转换为距离阈值
-            )
-            ids_scores = search_result['results']
-            search_method = "分页搜索"
-            
-            # 添加分页信息到搜索信息中
-            search_info = {
-                "found_results": len(ids_scores),
-                "total_results": search_result['total'],
-                "current_page": search_result['page'],
-                "has_next_page": search_result['has_next'],
-                "search_method": search_method
-            }
-            
-        elif request.search_mode == "multi_tier":
-            # 多层次搜索
-            ids_scores = enhanced_service.multi_tier_search(
-                query=enhanced_query,
-                target_count=request.target_count
-            )
-            search_method = "多层次搜索"
-            
-        elif request.search_mode == "semantic_boost":
-            # 语义增强搜索 - 目前使用基础搜索
-            ids_scores = enhanced_service.search(
-                query=enhanced_query,
-                top_k=request.top_k
-            )
-            search_method = "语义增强搜索"
-            
-        elif request.search_mode == "hybrid":
-            # 混合搜索 - 目前使用基础搜索
-            ids_scores = enhanced_service.search(
-                query=enhanced_query,
-                top_k=request.top_k
-            )
-            search_method = "混合搜索"
-            
-        else:
-            # 标准搜索
-            ids_scores = enhanced_service.search(enhanced_query, top_k=request.top_k)
         
+        # 策略2: 如果结果不足，尝试基础搜索
+        if len(ids_scores) < 3:
+            logger.info(f"动态搜索结果不足({len(ids_scores)}个)，尝试基础搜索")
+            basic_results = enhanced_service.search(enhanced_query, top_k=request.target_count)
+            if len(basic_results) > len(ids_scores):
+                ids_scores = basic_results
+                search_method = "基础向量搜索(降级)"
+        
+        # 策略3: 如果仍然结果不足，尝试多层次搜索
+        if len(ids_scores) < 3:
+            logger.info(f"基础搜索结果仍不足({len(ids_scores)}个)，尝试多层次搜索")
+            multi_results = enhanced_service.multi_tier_search(enhanced_query, request.target_count)
+            if len(multi_results) > len(ids_scores):
+                ids_scores = multi_results
+                search_method = "多层次搜索(降级)"
+        
+        # 策略4: 最后的降级 - 尝试关键词分解搜索
+        if len(ids_scores) < 1:
+            logger.warning(f"所有向量搜索策略都未找到结果，尝试关键词分解")
+            keywords = enhanced_query.split()
+            for keyword in keywords:
+                if len(keyword) > 1:
+                    keyword_results = enhanced_service.search(keyword, top_k=5)
+                    ids_scores.extend(keyword_results)
+            
+            if ids_scores:
+                unique_results = {}
+                for pose_id, score in ids_scores:
+                    if pose_id not in unique_results or score > unique_results[pose_id]:
+                        unique_results[pose_id] = score
+                ids_scores = list(unique_results.items())
+                ids_scores.sort(key=lambda x: x[1], reverse=True)
+                ids_scores = ids_scores[:request.target_count]
+                search_method = "关键词分解搜索(降级)"
+
         pose_ids = [pid for pid, _ in ids_scores]
 
         if not pose_ids:
@@ -294,10 +271,11 @@ async def enhanced_vector_search(
                 query_time_ms=int((time.time() - start) * 1000),
                 service_available=True,
                 search_info={
-                    "message": "未找到相关结果，请尝试其他关键词",
-                    "suggestion": "尝试使用更通用的词汇，如「人像」「室内」「户外」等",
+                    "message": "未找到相关结果，建议检查向量索引或尝试其他关键词",
+                    "suggestion": "请尝试更通用的词汇，或联系管理员检查向量搜索配置",
                     "enhanced_query": enhanced_query,
-                    "search_method": search_method
+                    "search_method": search_method,
+                    "debug_info": "所有搜索策略都未找到结果"
                 },
                 enhanced_info={"query_analysis": query_analysis}
             )

@@ -10,6 +10,7 @@ from .database import get_db, engine
 from .api import ai_search
 from .api import ai_database_search  # 新增
 from .api import enhanced_vector_search  # 使用增强版
+from app.api.debug_vector_search import router as debug_router
 # 移除旧的 vector_search 导入
 
 # 配置日志
@@ -36,7 +37,7 @@ app.add_middleware(
 app.include_router(ai_search.router, prefix="/api/v1", tags=["ai-search"])
 app.include_router(ai_database_search.router, prefix="/api/v1", tags=["ai-database-search"])  # 新增
 app.include_router(enhanced_vector_search.router, prefix="/api/v1", tags=["enhanced-vector-search"])  # 使用增强版
-
+app.include_router(debug_router, prefix="/api", tags=["debug"])
 # 其余代码保持不变...
 # 改进的启动事件处理
 @app.on_event("startup")
