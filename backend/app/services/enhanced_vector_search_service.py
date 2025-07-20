@@ -386,6 +386,56 @@ def multi_tier_search(self, query: str, target_count: int = 20) -> List[Tuple[in
         logger.info(f"严格搜索满足需求: {len(strict_results)} 个结果")
         return strict_results[:target_count]
     
+    # 第二层：动态阈值搜索
+    logger.info(f"严格搜索结果不足({len(strict_results)}个)，启用动态阈值搜索")
+    dynamic_results = self.search_with_dynamic_threshold(query, target_count, min_similarity=0.2)
+    
+    if len(dynamic_results) >= target_count:
+        logger.info(f"动态搜索满足需求: {len(dynamic_results)} 个结果")
+        return dynamic_results[:target_count]
+    
+    # 第三层：宽松搜索
+    logger.info(f"动态搜索结果仍不足({len(dynamic_results)}个)，启用宽松搜索")
+    try:
+        query_vec = self._embed(query)
+        if query_vec is None:
+            return dynamic_results
+        
+        # 使用更大的搜索范围和更宽松的条件
+        search_k = min(target_count * 20, 2000)
+        distances, indices = self.index.search(query_vec.reshape(1, -1), search_k)
+        
+        loose_results = []
+        for idx, dist in zip(indices[0], distances[0]):
+            if idx < 0 or str(idx) not in self.id_map:
+                continue
+            
+            similarity = self._distance_to_similarity(dist)
+            if similarity >= 0.1:  # 非常宽松的阈值
+                pose_id = self.id_map[str(idx)]
+                loose_results.append((pose_id, similarity))
+        
+        # 按相似度排序
+        loose_results.sort(key=lambda x: x[1], reverse=True)
+        
+        logger.info(f"宽松搜索完成: {len(loose_results)} 个结果")
+        return loose_results[:target_count]
+        
+    except Exception as e:
+        logger.error(f"宽松搜索失败: {e}")
+        return dynamic_results
+
+def multi_tier_search(self, query: str, target_count: int = 20) -> List[Tuple[int, float]]:
+    """
+    多层次搜索：先严格后宽松
+    """
+    # 第一层：严格搜索
+    strict_results = self.search(query, top_k=target_count)
+    
+    if len(strict_results) >= target_count:
+        logger.info(f"严格搜索满足需求: {len(strict_results)} 个结果")
+        return strict_results[:target_count]
+    
     # 第二层：使用动态阈值搜索
     dynamic_results = self.search_with_dynamic_threshold(
         query, target_count=target_count, min_similarity=0.2
