@@ -1,11 +1,12 @@
-import json
 import os
-from typing import List, Tuple, Optional, Dict
-import logging
-import numpy as np
-import openai
-from openai import OpenAI
+import json
 import faiss
+import numpy as np
+import logging
+from typing import List, Tuple, Dict, Any, Optional
+from openai import OpenAI
+from sqlalchemy.orm import Session
+
 from ..config import settings
 
 logger = logging.getLogger(__name__)
@@ -110,9 +111,9 @@ class EnhancedVectorSearchService:
                 pose_id = self.id_map[str(idx)]
                 similarity = self._distance_to_similarity(dist)
                 
-                # 获取原始文本（用于重排序）
-                original_text = self._get_pose_text(pose_id)
-                results.append((pose_id, similarity, original_text))
+                # 获取姿势描述信息用于重排序
+                pose_info = self._get_pose_description(pose_id)
+                results.append((pose_id, similarity, pose_info))
             
             return results
             
@@ -127,348 +128,226 @@ class EnhancedVectorSearchService:
             return []
         
         try:
-            # 构建重排序prompt
-            prompt = self._build_rerank_prompt(query, candidates)
+            # 构建重排序提示
+            candidate_texts = []
+            for i, (pose_id, similarity, description) in enumerate(candidates):
+                candidate_texts.append(f"{i}: {description}")
+            
+            candidates_text = "\n".join(candidate_texts)
+            
+            prompt = f"""
+你是一个专业的摄影姿势推荐专家。用户查询："{query}"
+
+请从以下候选姿势中选择最相关的{final_k}个，并按相关性排序（最相关的排在前面）：
+
+{candidates_text}
+
+只返回选中的候选编号，用逗号分隔，例如：0,3,7,2,9
+"""
             
             response = self.client.chat.completions.create(
-                model="gpt-4o-mini",  # 使用更快的模型做重排序
+                model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=1000,
+                max_tokens=200,
                 temperature=0.1
             )
             
-            # 解析重排序结果
-            reranked_results = self._parse_rerank_result(response.choices[0].message.content, candidates)
+            # 解析GPT响应
+            selected_indices = []
+            if response.choices and response.choices[0].message.content:
+                content = response.choices[0].message.content.strip()
+                try:
+                    indices = [int(x.strip()) for x in content.split(',')]
+                    selected_indices = [i for i in indices if 0 <= i < len(candidates)][:final_k]
+                except ValueError:
+                    logger.warning(f"GPT重排序响应解析失败: {content}")
             
-            return reranked_results[:final_k]
+            # 如果GPT失败，使用原始顺序
+            if not selected_indices:
+                selected_indices = list(range(min(final_k, len(candidates))))
+            
+            # 构建最终结果
+            results = []
+            for i, idx in enumerate(selected_indices):
+                pose_id, original_similarity, _ = candidates[idx]
+                # 结合原始相似度和GPT排序位置计算新分数
+                gpt_score = 1.0 - (i * 0.1)  # GPT排序越靠前分数越高
+                final_score = original_similarity * 0.7 + gpt_score * 0.3
+                results.append((pose_id, final_score))
+            
+            return results
             
         except Exception as e:
             logger.error(f"GPT重排序失败: {e}")
-            # 降级到原始排序
-            return [(pose_id, score) for pose_id, score, _ in candidates[:final_k]]
+            # 降级到基础排序
+            return [(pose_id, similarity) for pose_id, similarity, _ in candidates[:final_k]]
     
-    def _build_rerank_prompt(self, query: str, candidates: List[Tuple[int, float, str]]) -> str:
-        """构建重排序prompt"""
-        candidates_text = ""
-        for i, (pose_id, score, text) in enumerate(candidates):
-            candidates_text += f"\n{i+1}. ID:{pose_id} (向量相似度:{score:.3f})\n内容: {text[:200]}...\n"
-        
-        return f"""
-你是一个专业的图片搜索排序专家。用户搜索: "{query}"
-
-以下是候选结果：
-{candidates_text}
-
-请根据用户查询的意图，对这些结果进行重新排序，只返回最相关的结果。
-
-评分标准：
-1. 语义相关性：内容是否与查询意图匹配
-2. 关键词匹配：是否包含查询的关键词
-3. 上下文理解：是否理解查询的隐含含义
-4. 质量评估：描述是否详细准确
-
-请按以下JSON格式返回排序结果：
-{{
-    "reranked_results": [
-        {{"id": 123, "score": 0.95, "reason": "完全匹配用户查询意图"}},
-        {{"id": 456, "score": 0.85, "reason": "部分匹配但相关性高"}}
-    ],
-    "filtered_count": 2
-}}
-
-只返回相关性分数 > 0.6 的结果，最多返回10个。
-"""
+    def _quality_filter(self, results: List[Tuple[int, float]], 
+                       min_similarity: float) -> List[Tuple[int, float]]:
+        """阶段3：质量过滤"""
+        filtered = [(pose_id, score) for pose_id, score in results if score >= min_similarity]
+        return sorted(filtered, key=lambda x: x[1], reverse=True)
     
-    def _parse_rerank_result(self, result_text: str, candidates: List[Tuple[int, float, str]]) -> List[Tuple[int, float]]:
-        """解析重排序结果"""
+    def _embed(self, text: str) -> np.ndarray:
+        """生成文本嵌入向量"""
         try:
-            # 提取JSON
-            if '```json' in result_text:
-                json_str = result_text.split('```json')[1].split('```')[0]
-            elif '```' in result_text:
-                json_str = result_text.split('```')[1]
-            else:
-                json_str = result_text
-            
-            result = json.loads(json_str.strip())
-            reranked = []
-            
-            for item in result.get('reranked_results', []):
-                pose_id = item.get('id')
-                score = item.get('score', 0.0)
-                if score > 0.6:  # 质量阈值
-                    reranked.append((pose_id, score))
-            
-            return reranked
-            
+            response = self.client.embeddings.create(
+                input=text,
+                model="text-embedding-ada-002"
+            )
+            embedding = np.array(response.data[0].embedding, dtype=np.float32)
+            return embedding
         except Exception as e:
-            logger.error(f"重排序结果解析失败: {e}")
-            # 降级处理
-            return [(pose_id, score) for pose_id, score, _ in candidates]
-    
-    def _quality_filter(self, results: List[Tuple[int, float]], min_similarity: float) -> List[Tuple[int, float]]:
-        """阶段3：最终质量过滤"""
-        if not results:
-            return []
-        
-        # 动态阈值调整
-        scores = [score for _, score in results]
-        avg_score = sum(scores) / len(scores)
-        
-        # 如果平均分很低，说明查询质量不好，提高阈值
-        dynamic_threshold = max(min_similarity, avg_score * 0.8)
-        
-        filtered = [(pose_id, score) for pose_id, score in results if score >= dynamic_threshold]
-        
-        logger.info(f"质量过滤: {len(results)} -> {len(filtered)} (阈值: {dynamic_threshold:.3f})")
-        return filtered
-    
-    def _embed(self, text: str) -> Optional[np.ndarray]:
-        """生成向量"""
-        try:
-            resp = self.client.embeddings.create(input=[text], model="text-embedding-3-small")
-            return np.array(resp.data[0].embedding, dtype="float32")
-        except Exception as e:
-            logger.error(f"向量生成失败: {e}")
+            logger.error(f"生成嵌入向量失败: {e}")
             return None
     
     def _distance_to_similarity(self, distance: float) -> float:
-        """转换距离为相似度"""
-        return max(0.0, 1.0 - distance / 2.0)
+        """将距离转换为相似度分数 (0-1)"""
+        # 使用指数衰减函数，距离越小相似度越高
+        return np.exp(-distance)
     
-    def _get_pose_text(self, pose_id: int) -> str:
-        """获取pose的原始文本（需要从数据库查询）"""
-        # 这里需要实现从数据库获取文本的逻辑
-        # 目前返回占位符
-        return f"pose_{pose_id}_text"
+    def _get_pose_description(self, pose_id: int) -> str:
+        """获取姿势描述信息"""
+        # 这里应该从数据库获取姿势的描述信息
+        # 暂时返回简单的占位符
+        return f"姿势 {pose_id} 的描述信息"
     
-# 在现有的 EnhancedVectorSearchService 类中添加以下方法：
-
-def search_with_pagination(self, query: str, page: int = 1, page_size: int = 10, 
-                          similarity_threshold: float = 1.5) -> Dict:
-    """
-    分页向量搜索
-    
-    Args:
-        query: 搜索查询
-        page: 页码（从1开始）
-        page_size: 每页数量
-        similarity_threshold: 相似度阈值
-    
-    Returns:
-        {
-            'results': [(pose_id, similarity_score), ...],
-            'total': 总数量,
-            'page': 当前页,
-            'has_next': 是否有下一页
-        }
-    """
-    if not self.available:
-        return {'results': [], 'total': 0, 'page': page, 'has_next': False}
-    
-    try:
-        # 搜索更大的候选集
-        search_k = min(page * page_size * 5, 1000)  # 最多搜索1000个候选
-        
-        query_vec = self._embed(query)
-        if query_vec is None:
+    def search_with_pagination(self, query: str, page: int = 1, page_size: int = 20, 
+                              similarity_threshold: float = 0.7) -> Dict[str, Any]:
+        """分页搜索"""
+        if not self.available:
             return {'results': [], 'total': 0, 'page': page, 'has_next': False}
         
-        distances, indices = self.index.search(query_vec.reshape(1, -1), search_k)
-        
-        # 过滤和排序所有结果
-        all_results = []
-        for idx, dist in zip(indices[0], distances[0]):
-            if idx < 0 or str(idx) not in self.id_map:
-                continue
+        try:
+            query_vec = self._embed(query)
+            if query_vec is None:
+                return {'results': [], 'total': 0, 'page': page, 'has_next': False}
+            
+            # 搜索大量候选结果
+            search_k = min(page * page_size * 5, 2000)  # 搜索足够多的候选
+            distances, indices = self.index.search(query_vec.reshape(1, -1), search_k)
+            
+            # 过滤有效结果
+            valid_results = []
+            for idx, dist in zip(indices[0], distances[0]):
+                if idx < 0 or str(idx) not in self.id_map:
+                    continue
                 
-            # 应用相似度阈值过滤
-            if dist > similarity_threshold:
-                continue
-                
-            pose_id = self.id_map[str(idx)]
-            similarity = self._distance_to_similarity(dist)
-            all_results.append((pose_id, similarity))
-        
-        # 按相似度排序
-        all_results.sort(key=lambda x: x[1], reverse=True)
-        
-        # 分页处理
-        start_idx = (page - 1) * page_size
-        end_idx = start_idx + page_size
-        page_results = all_results[start_idx:end_idx]
-        
-        logger.info(f"分页搜索: 总数={len(all_results)}, 页码={page}, 页大小={page_size}")
-        
-        return {
-            'results': page_results,
-            'total': len(all_results),
-            'page': page,
-            'has_next': end_idx < len(all_results)
-        }
-        
-    except Exception as e:
-        logger.error(f"分页搜索失败: {e}")
-        return {'results': [], 'total': 0, 'page': page, 'has_next': False}
+                if dist <= similarity_threshold:  # 距离越小越相似
+                    pose_id = self.id_map[str(idx)]
+                    similarity = self._distance_to_similarity(dist)
+                    valid_results.append((pose_id, similarity))
+            
+            # 排序
+            valid_results.sort(key=lambda x: x[1], reverse=True)
+            
+            # 分页
+            total = len(valid_results)
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            
+            page_results = valid_results[start_idx:end_idx]
+            has_next = end_idx < total
+            
+            logger.info(f"分页搜索: 第{page}页, 每页{page_size}条, 总计{total}条, 返回{len(page_results)}条")
+            
+            return {
+                'results': page_results,
+                'total': total,
+                'page': page,
+                'has_next': has_next
+            }
+            
+        except Exception as e:
+            logger.error(f"分页搜索失败: {e}")
+            return {'results': [], 'total': 0, 'page': page, 'has_next': False}
 
-def search_with_dynamic_threshold(self, query: str, target_count: int = 20, 
-                                 min_similarity: float = 0.3) -> List[Tuple[int, float]]:
-    """
-    动态阈值搜索，确保返回足够多的相关结果
-    
-    Args:
-        query: 搜索查询
-        target_count: 目标返回数量
-        min_similarity: 最低相似度要求
-    """
-    if not self.available:
-        return []
-    
-    try:
-        query_vec = self._embed(query)
-        if query_vec is None:
+    def search_with_dynamic_threshold(self, query: str, target_count: int = 20, 
+                                     min_similarity: float = 0.3) -> List[Tuple[int, float]]:
+        """
+        动态阈值搜索，确保返回足够多的相关结果
+        
+        Args:
+            query: 搜索查询
+            target_count: 目标返回数量
+            min_similarity: 最低相似度要求
+        """
+        if not self.available:
             return []
         
-        # 搜索更大的候选集
-        search_k = min(target_count * 10, 1000)
-        distances, indices = self.index.search(query_vec.reshape(1, -1), search_k)
-        
-        # 收集所有有效结果
-        valid_results = []
-        for idx, dist in zip(indices[0], distances[0]):
-            if idx < 0 or str(idx) not in self.id_map:
-                continue
+        try:
+            query_vec = self._embed(query)
+            if query_vec is None:
+                return []
             
-            similarity = self._distance_to_similarity(dist)
-            if similarity >= min_similarity:
-                pose_id = self.id_map[str(idx)]
-                valid_results.append((pose_id, similarity, dist))
-        
-        if not valid_results:
+            # 搜索更大的候选集
+            search_k = min(target_count * 10, 1000)
+            distances, indices = self.index.search(query_vec.reshape(1, -1), search_k)
+            
+            # 收集所有有效结果
+            valid_results = []
+            for idx, dist in zip(indices[0], distances[0]):
+                if idx < 0 or str(idx) not in self.id_map:
+                    continue
+                
+                similarity = self._distance_to_similarity(dist)
+                if similarity >= min_similarity:
+                    pose_id = self.id_map[str(idx)]
+                    valid_results.append((pose_id, similarity, dist))
+            
+            if not valid_results:
+                return []
+            
+            # 按相似度排序
+            valid_results.sort(key=lambda x: x[1], reverse=True)
+            
+            # 动态确定阈值
+            if len(valid_results) >= target_count:
+                # 如果结果够多，使用更严格的阈值
+                threshold_similarity = valid_results[target_count - 1][1]
+                # 确保阈值不会过于严格
+                threshold_similarity = max(threshold_similarity, min_similarity)
+            else:
+                # 如果结果不够，使用最低阈值
+                threshold_similarity = min_similarity
+            
+            # 应用动态阈值
+            final_results = [
+                (pose_id, similarity) 
+                for pose_id, similarity, _ in valid_results 
+                if similarity >= threshold_similarity
+            ]
+            
+            logger.info(f"动态阈值搜索: 候选={len(valid_results)}, 最终={len(final_results)}, 阈值={threshold_similarity:.3f}")
+            
+            return final_results[:target_count]
+            
+        except Exception as e:
+            logger.error(f"动态阈值搜索失败: {e}")
             return []
-        
-        # 按相似度排序
-        valid_results.sort(key=lambda x: x[1], reverse=True)
-        
-        # 动态确定阈值
-        if len(valid_results) >= target_count:
-            # 如果结果够多，使用更严格的阈值
-            threshold_similarity = valid_results[target_count - 1][1]
-            # 确保阈值不会过于严格
-            threshold_similarity = max(threshold_similarity, min_similarity)
-        else:
-            # 如果结果不够，使用最低阈值
-            threshold_similarity = min_similarity
-        
-        # 应用动态阈值
-        final_results = [
-            (pose_id, similarity) 
-            for pose_id, similarity, _ in valid_results 
-            if similarity >= threshold_similarity
-        ]
-        
-        logger.info(f"动态阈值搜索: 候选={len(valid_results)}, 最终={len(final_results)}, 阈值={threshold_similarity:.3f}")
-        
-        return final_results[:target_count]
-        
-    except Exception as e:
-        logger.error(f"动态阈值搜索失败: {e}")
-        return []
 
-def multi_tier_search(self, query: str, target_count: int = 20) -> List[Tuple[int, float]]:
-    """
-    多层次搜索：先严格后宽松
-    """
-    # 第一层：严格搜索
-    strict_results = self.search(query, top_k=target_count)
-    
-    if len(strict_results) >= target_count:
-        logger.info(f"严格搜索满足需求: {len(strict_results)} 个结果")
-        return strict_results[:target_count]
-    
-    # 第二层：动态阈值搜索
-    logger.info(f"严格搜索结果不足({len(strict_results)}个)，启用动态阈值搜索")
-    dynamic_results = self.search_with_dynamic_threshold(query, target_count, min_similarity=0.2)
-    
-    if len(dynamic_results) >= target_count:
-        logger.info(f"动态搜索满足需求: {len(dynamic_results)} 个结果")
-        return dynamic_results[:target_count]
-    
-    # 第三层：宽松搜索
-    logger.info(f"动态搜索结果仍不足({len(dynamic_results)}个)，启用宽松搜索")
-    try:
-        query_vec = self._embed(query)
-        if query_vec is None:
-            return dynamic_results
+    def multi_tier_search(self, query: str, target_count: int = 20) -> List[Tuple[int, float]]:
+        """
+        多层次搜索：先严格后宽松
+        """
+        # 第一层：严格搜索
+        strict_results = self.search(query, top_k=target_count)
         
-        # 使用更大的搜索范围和更宽松的条件
-        search_k = min(target_count * 20, 2000)
-        distances, indices = self.index.search(query_vec.reshape(1, -1), search_k)
+        if len(strict_results) >= target_count:
+            logger.info(f"严格搜索满足需求: {len(strict_results)} 个结果")
+            return strict_results[:target_count]
         
-        loose_results = []
-        for idx, dist in zip(indices[0], distances[0]):
-            if idx < 0 or str(idx) not in self.id_map:
-                continue
-            
-            similarity = self._distance_to_similarity(dist)
-            if similarity >= 0.1:  # 非常宽松的阈值
-                pose_id = self.id_map[str(idx)]
-                loose_results.append((pose_id, similarity))
+        # 第二层：动态阈值搜索
+        logger.info(f"严格搜索结果不足({len(strict_results)}个)，启用动态阈值搜索")
+        dynamic_results = self.search_with_dynamic_threshold(query, target_count, min_similarity=0.2)
         
-        # 按相似度排序
-        loose_results.sort(key=lambda x: x[1], reverse=True)
+        if len(dynamic_results) >= target_count:
+            logger.info(f"动态阈值搜索满足需求: {len(dynamic_results)} 个结果")
+            return dynamic_results[:target_count]
         
-        logger.info(f"宽松搜索完成: {len(loose_results)} 个结果")
-        return loose_results[:target_count]
+        # 第三层：最宽松搜索
+        logger.info(f"动态搜索结果仍不足({len(dynamic_results)}个)，启用最宽松搜索")
+        relaxed_results = self.search_with_dynamic_threshold(query, target_count, min_similarity=0.1)
         
-    except Exception as e:
-        logger.error(f"宽松搜索失败: {e}")
-        return dynamic_results
-
-def multi_tier_search(self, query: str, target_count: int = 20) -> List[Tuple[int, float]]:
-    """
-    多层次搜索：先严格后宽松
-    """
-    # 第一层：严格搜索
-    strict_results = self.search(query, top_k=target_count)
-    
-    if len(strict_results) >= target_count:
-        logger.info(f"严格搜索满足需求: {len(strict_results)} 个结果")
-        return strict_results[:target_count]
-    
-    # 第二层：使用动态阈值搜索
-    dynamic_results = self.search_with_dynamic_threshold(
-        query, target_count=target_count, min_similarity=0.2
-    )
-    
-    if len(dynamic_results) >= target_count:
-        logger.info(f"动态搜索满足需求: {len(dynamic_results)} 个结果")
-        return dynamic_results[:target_count]
-    
-    # 第三层：最宽松搜索
-    try:
-        query_vec = self._embed(query)
-        if query_vec is None:
-            return dynamic_results
-        
-        search_k = min(target_count * 15, 1500)
-        distances, indices = self.index.search(query_vec.reshape(1, -1), search_k)
-        
-        loose_results = []
-        for idx, dist in zip(indices[0], distances[0]):
-            if idx < 0 or str(idx) not in self.id_map:
-                continue
-            
-            similarity = self._distance_to_similarity(dist)
-            if similarity >= 0.1:  # 非常宽松的阈值
-                pose_id = self.id_map[str(idx)]
-                loose_results.append((pose_id, similarity))
-        
-        loose_results.sort(key=lambda x: x[1], reverse=True)
-        
-        logger.info(f"宽松搜索完成: {len(loose_results)} 个结果")
-        return loose_results[:target_count]
-        
-    except Exception as e:
-        logger.error(f"宽松搜索失败: {e}")
-        return dynamic_results
+        logger.info(f"最终多层次搜索结果: {len(relaxed_results)} 个结果")
+        return relaxed_results[:target_count]
